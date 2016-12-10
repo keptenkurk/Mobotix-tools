@@ -1,5 +1,6 @@
 # MxPGM
 Mobotix Remote configuration utility
+Tested on Python 2.7.12
 
 Mobotix IP camera's come with an overwheling amount of configuration options. 
 When configuring these camera's for larger projects it can be time saving when
