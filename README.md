@@ -70,3 +70,10 @@ In these cases the -v option is valuable since we can verify the merging of the 
 to avoid rubbish being send to the camera's.
 Files can have any name. The devicelist file is a CSV file with ";" as a separator.
 
+When programming a single camera without parameters instead of a camera device list (the -l option)
+a single IP can be passed with the -d option like:
+```
+> python mxpgm.py -c storeandreboot.conf -d 192.168.1.100 -u john -p mysecret -v
+```
+
+
