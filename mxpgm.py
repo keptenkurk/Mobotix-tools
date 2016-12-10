@@ -5,9 +5,9 @@
 # This script programs (multiple) mobotix camera's through Mobotix API
 # See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html for details
 # usage:
-# python mxprogram.py [options] 
+# python mxpgm.py [options] 
 # use option -h or --help for instructions
-# 
+# See https://github.com/keptenkurk/mxpgm/blob/master/README.md for instructions
 #
 # release info
 # 1.0 first release 10/12/16 Paul Merkx
