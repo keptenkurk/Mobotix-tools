@@ -41,7 +41,7 @@ MxPGM can now be put to work with:
 The -v (verify) option tells mxpgm to just print out the commands without actually 
 programming any camera. Then, leaving the -v out, the camera's can be programmed.
 MxPGM will have a communication timeout of 5 seconds and will assume that a command is 
-processed within 20 seconds (a reboot takes about 12 seconds to process, the reboot itself
+processed within 30 seconds (a reboot takes about 12 seconds to process, the reboot itself
 nearly 2 minutes).
 
 The devicelist could also contain parameters, unique to each camera, to be passed to the 
@@ -76,5 +76,6 @@ a single IP can be passed with the -d option like:
 ```
 > python mxpgm.py -c storeandreboot.conf -d 192.168.1.100 -u john -p mysecret -v
 ```
+MxPgm supports writing the received output to file with the -f <filename> option.
 
 

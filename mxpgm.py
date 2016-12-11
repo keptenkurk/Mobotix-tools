@@ -17,6 +17,7 @@ import pycurl
 import sys
 import argparse
 import csv
+from StringIO import StringIO
 
 RELEASE = '1.0 - 3 dec 2016'
 
@@ -48,17 +49,18 @@ def replace_all(text, dic):
     
 def transfer(ipaddr, username, password, commandfile):   
     #transfers commandfile to camera
-    filename = commandfile
+    storage = StringIO()
     c = pycurl.Curl()
     c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, 20)
-    filesize = os.path.getsize(filename)
-    f = open(filename, 'rb')
+    c.setopt(c.TIMEOUT, 30)
+    filesize = os.path.getsize(commandfile)
+    f = open(commandfile, 'rb')
     c.setopt(c.FAILONERROR, True)
     c.setopt(pycurl.POSTFIELDSIZE, filesize)
     c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
+    c.setopt(c.WRITEFUNCTION, storage.write)
     c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
     c.setopt(c.VERBOSE, 0)
     c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
@@ -68,9 +70,11 @@ def transfer(ipaddr, username, password, commandfile):
     except pycurl.error, error:
         errno, errstr = error
         print 'An error occurred: ', errstr
-        return(False)
+        return False, ''
     c.close()
-    return(True)
+    content = storage.getvalue()
+    f.close()
+    return True, content
 
 
 # ***************************************************************
@@ -87,6 +91,7 @@ parser.add_argument("-v", "--verify", help="don't program camera yet but show re
 parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
 parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to send to camera(s). See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html")
+parser.add_argument("-f", "--fileout", nargs=1, help="specify output filename")
 parser.add_argument("-g", "--getconfig", help="read config files from camera's in list", action="store_true")
 parser.add_argument("-w", "--writeconfig", help="write configs found in current directory", action="store_true")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
@@ -137,6 +142,14 @@ if args.writeconfig:
     print("This feature was not yet implemented")
     sys.exit()
     
+if args.fileout:
+    try:
+        f = open(args.fileout[0], 'w')
+        f.close()
+    except IOError:
+        print('Unable to write to outputfile. It might be opened in another application.')
+        sys.exit()
+    
 print('Starting')
 print('Build devicelist...')
 
@@ -176,10 +189,18 @@ for devicenr in range(1, len(devicelist)):
                 print(outfile.read())
             print('-------------------------------------')
         else:
-            result = transfer(ipaddr, username, password, 'commands.tmp')
+            (result, received) = transfer(ipaddr, username, password, 'commands.tmp')
             if result:
                 print('Programming ' + ipaddr + ' succeeded.')
+                if args.fileout:
+                    try:
+                        rxfile = open(args.fileout[0], 'w')
+                        rxfile.write(received)
+                        rxfile.close()
+                    except IOError:
+                        print('Error writing received results to file')
+                        sys.exit()
             else:
                 print('ERROR: Programming ' + ipaddr + ' failed.')
-            print()
+            print('')
 print("Done.")
