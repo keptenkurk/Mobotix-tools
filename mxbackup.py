@@ -1,26 +1,29 @@
 # ****************************************************************************
-# * mxpgm.py
-# * Mobotix camera programmer
+# * mxbackup.py
+# * Mobotix camera configuration backup utility
 #
-# This script programs (multiple) mobotix camera's through Mobotix API
+# This script saves configuration files from (multiple) mobotix camera's through 
+# the Mobotix API
 # See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html for details
 # usage:
-# python mxpgm.py [options] 
+# python mxbackup.py [options] 
 # use option -h or --help for instructions
 # See https://github.com/keptenkurk/mxpgm/blob/master/README.md for instructions
 #
 # release info
-# 1.0 first release 10/12/16 Paul Merkx
-# 1.1 separate tools for backup and restor 29/8/17 Paul Merkx
+# 1.0 first release 29/8/17 Paul Merkx
 # ****************************************************************************
 import os
 import pycurl
 import sys
 import argparse
 import csv
+import datetime
 from StringIO import StringIO
 
-RELEASE = '1.1 - 29 aug 2017'
+RELEASE = '1.0 - 3 dec 2016'
+tmpconfig = 'config.tmp'
+tmpbackup = 'backup.tmp'
 
 class FileReader:
     def __init__(self, fp):
@@ -28,7 +31,17 @@ class FileReader:
     def read_callback(self, size):
         return self.fp.read(size)
 
+
+def filewritable(filename):
+    try:
+        f = open(filename, 'w')
+        f.close()
+    except IOError:
+        print('Unable to write to %s. It might be opened in another application. Skip operation.', filename)
+        return False
+    return True
         
+
 def validate_ip(s):
     a = s.split('.')
     if len(a) != 4:
@@ -41,12 +54,6 @@ def validate_ip(s):
             return False
     return True
 
- 
-def replace_all(text, dic):
-    for i, j in dic.iteritems():
-        text = text.replace(i, j)
-    return text
-
     
 def transfer(ipaddr, username, password, commandfile):   
     #transfers commandfile to camera
@@ -55,7 +62,8 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, 60)
+    # programming a full config, update and store takes quite some time
+    c.setopt(c.TIMEOUT, 120)
     filesize = os.path.getsize(commandfile)
     f = open(commandfile, 'rb')
     c.setopt(c.FAILONERROR, True)
@@ -81,7 +89,7 @@ def transfer(ipaddr, username, password, commandfile):
 # ***************************************************************
 # *** Main program ***
 # ***************************************************************
-print('MxProgram ' + RELEASE + ' by (c) Simac Healthcare.')
+print('MxBackup ' + RELEASE + ' by (c) Simac Healthcare.')
 print('Disclaimer: ')
 print('USE THIS SOFTWARE AT YOUR OWN RISK')
 print(' ')
@@ -91,8 +99,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verify", help="don't program camera yet but show resulting commandfile(s)", action="store_true")
 parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
-parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to send to camera(s). See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html")
-parser.add_argument("-f", "--fileout", nargs=1, help="specify output filename")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 
@@ -124,74 +130,46 @@ if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
         print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
         sys.exit()
-
-if args.commandfile:
-    if not os.path.exists(args.commandfile[0]):
-        print("The commandfile '%s' does not exist in the current directory!" % (args.commandfile[0]))
-        sys.exit()
-else:
-    print("The program requires a commandfile parameter! (-c [file])")
-    sys.exit()
-    
-if args.fileout:
-    try:
-        f = open(args.fileout[0], 'w')
-        f.close()
-    except IOError:
-        print('Unable to write to outputfile. It might be opened in another application.')
-        sys.exit()
     
 print('Starting')
-print('Build devicelist...')
 
 # Build devicelist from devicelist file or from single parameter
 # devicelist is a list of lists
 devicelist = []
 if args.devicelist:
+    print('Build devicelist...')
     csv.register_dialect('semicolons', delimiter=';')
     with open(args.devicelist[0], 'rb') as f:
         reader = csv.reader(f, dialect='semicolons')
         for row in reader:
             devicelist.append(row)
 else:
+    print('Found device '+ args.deviceIP[0])
     devicelist.append(['IP'])
     devicelist.append([args.deviceIP[0]])
-#devicelist[0] now contains a list of labels we need to replace
-#in the commandfile.
 
 for devicenr in range(1, len(devicelist)):
     #skip device if starts with comment
     if devicelist[devicenr][0][0] != '#':
-        #build replacement dictionary
-        replacedict = {}
-        for param in range(1, len(devicelist[devicenr])):
-            replacedict['{' + devicelist[0][param] + '}'] = devicelist[devicenr][param]
-        ipaddr = devicelist[devicenr][0]
-        print('About to program device ' + ipaddr)
-        infile = open(args.commandfile[0],'r')
-        outfile = open('commands.tmp', 'w')
-        for line in infile:
-            outfile.write(replace_all(line, replacedict))
-        infile.close()
+        # build API commandfile to read the config
+        outfile = open(tmpconfig, 'w')
+        outfile.write('helo\n')
+        outfile.write('view configfile\n')
+        outfile.write('quit\n')
         outfile.close()
-        if args.verify:
-            print('------------verify output------------')
-            with open('commands.tmp', 'r') as outfile:
-                print(outfile.read())
-            print('-------------------------------------')
-        else:
-            (result, received) = transfer(ipaddr, username, password, 'commands.tmp')
+        ipaddr = devicelist[devicenr][0]
+        cfgfilename = ipaddr.replace(".", "-") + "_" + \
+                      datetime.datetime.now().strftime("_%y%m%d-%H%M") + ".cfg"
+        if filewritable(cfgfilename):
+            (result, received) = transfer(ipaddr, username, password, tmpconfig)
             if result:
-                print('Programming ' + ipaddr + ' succeeded.')
-                if args.fileout:
-                    try:
-                        rxfile = open(args.fileout[0], 'w')
-                        rxfile.write(received)
-                        rxfile.close()
-                    except IOError:
-                        print('Error writing received results to file')
-                        sys.exit()
+                print('Reading of ' + ipaddr + ' succeeded.')
+                outfile = open(cfgfilename, 'w')
+                outfile.write(received)
+                outfile.seek(-24,2)
+                outfile.truncate()
+                outfile.close()
             else:
-                print('ERROR: Programming ' + ipaddr + ' failed.')
-            print('')
+                print('ERROR: Reading of ' + ipaddr + ' failed.')
+        print('')
 print("Done.")
