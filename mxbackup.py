@@ -168,7 +168,7 @@ for devicenr in range(1, len(devicelist)):
             outfile.close()
             ipaddr = devicelist[devicenr][0]
             cfgfilename = ipaddr.replace(".", "-") + "_" + \
-                          datetime.datetime.now().strftime("_%y%m%d-%H%M") + ".cfg"
+                          datetime.datetime.now().strftime("%y%m%d-%H%M") + ".cfg"
             if filewritable(cfgfilename):
                 (result, received) = transfer(ipaddr, username, password, TMPCONFIG)
                 if result:

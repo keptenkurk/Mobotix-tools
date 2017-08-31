@@ -18,15 +18,33 @@ import pycurl
 import sys
 import argparse
 import csv
-from StringIO import StringIO
+import glob
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
-RELEASE = '1.0 - 29/8/17'
+RELEASE = '1.0 - 29-8-17'
+TMPCONFIG = 'config.tmp'
+TIMEOUT = 120 # saving config is generally slow
+VERBOSE = 0   # show pycurl verbose
 
 class FileReader:
     def __init__(self, fp):
         self.fp = fp
     def read_callback(self, size):
         return self.fp.read(size)
+        
+
+def filewritable(filename):
+    try:
+        f = open(filename, 'w')
+        f.close()
+    except IOError:
+        print('Unable to write to ' + filename + '. It might be open in another application.')
+        return False
+    os.remove(filename)
+    return True
 
         
 def validate_ip(s):
@@ -41,12 +59,6 @@ def validate_ip(s):
             return False
     return True
 
- 
-def replace_all(text, dic):
-    for i, j in dic.iteritems():
-        text = text.replace(i, j)
-    return text
-
     
 def transfer(ipaddr, username, password, commandfile):   
     #transfers commandfile to camera
@@ -55,8 +67,7 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
-    # programming a full config, update and store takes quite some time
-    c.setopt(c.TIMEOUT, 120)
+    c.setopt(c.TIMEOUT, TIMEOUT)
     filesize = os.path.getsize(commandfile)
     f = open(commandfile, 'rb')
     c.setopt(c.FAILONERROR, True)
@@ -64,7 +75,7 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
     c.setopt(c.WRITEFUNCTION, storage.write)
     c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, 0)
+    c.setopt(c.VERBOSE, VERBOSE)
     c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
     c.setopt(pycurl.USERPWD, username + ':' + password)
     try:
@@ -83,16 +94,15 @@ def transfer(ipaddr, username, password, commandfile):
 # *** Main program ***
 # ***************************************************************
 print('MxRestore ' + RELEASE + ' by (c) Simac Healthcare.')
+print('Restores entire configuration of multiple Mobotix camera\'s to local disk.')
 print('Disclaimer: ')
 print('USE THIS SOFTWARE AT YOUR OWN RISK')
 print(' ')
 
 # *** Read arguments passed on commandline
 parser = argparse.ArgumentParser()
-parser.add_argument("-v", "--verify", help="don't program camera yet but show resulting commandfile(s)", action="store_true")
 parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
-parser.add_argument("-f", "--fileout", nargs=1, help="specify output filename")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 
@@ -114,6 +124,10 @@ if args.password is None:
     password = 'meinsm'
 else:
     password = args.password[0]
+
+if not args.deviceIP and not args.devicelist:
+    print("No devices specified. Either specify a device (-d) or devicelist (-l)")
+    sys.exit()
     
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
@@ -123,14 +137,6 @@ if args.deviceIP:
 if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
         print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
-        sys.exit()
- 
-if args.fileout:
-    try:
-        f = open(args.fileout[0], 'w')
-        f.close()
-    except IOError:
-        print('Unable to write to outputfile. It might be opened in another application.')
         sys.exit()
     
 print('Starting')
@@ -153,26 +159,29 @@ else:
 for devicenr in range(1, len(devicelist)):
     #skip device if starts with comment
     if devicelist[devicenr][0][0] != '#':
-        cfgfilename = ipaddr.replace(".", "-") + "_" + \
-                      datetime.datetime.now().strftime("_%y%m%d-%H%M") + ".cfg"
-        # build API commandfile to read the config
-        outfile = open(tmpconfig, 'w')
-        outfile.write('helo\n')
-        outfile.write('write\n')
-        '''
-        cfgfile goes here
-        '''
-        outfile.write('store\n')
-        outfile.write('update\n')
-        outfile.write('quit\n')
-        outfile.close()
         ipaddr = devicelist[devicenr][0]
-
-        if filewritable(cfgfilename):
-            (result, received) = transfer(ipaddr, username, password, tmpconfig)
-            if result:
-                print('Restoring of ' + ipaddr + ' succeeded.')
-            else:
-                print('ERROR: Reading of ' + ipaddr + ' failed.')
+        cfgfilenamepattern = ipaddr.replace(".", "-") + "_*.cfg"
+        list_of_files = glob.glob(cfgfilenamepattern)
+        if list_of_files <> []:
+            latest_file = max(list_of_files, key=os.path.getctime)
+            # build API commandfile to read the config
+            if filewritable(TMPCONFIG):
+                outfile = open(tmpconfig, 'w')
+                outfile.write('helo\n')
+                outfile.write('write\n')
+                '''
+                content of latest_file goes here
+                '''
+                outfile.write('store\n')
+                outfile.write('update\n')
+                outfile.write('quit\n')
+                outfile.close()
+                (result, received) = transfer(ipaddr, username, password, tmpconfig)
+                if result:
+                    print('Restoring of ' + ipaddr + ' succeeded.')
+                else:
+                    print('ERROR: Restoring of ' + ipaddr + ' failed.')
+        else:
+            print('No configfile found for device' + ipaddr)
         print('')
 print("Done.")
