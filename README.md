@@ -1,7 +1,51 @@
-# MxPGM
-Mobotix Remote configuration utility
-Tested on Python 2.7.12
+# Mobotix Tools
+The Mobotix-tools repository contains some utilities which might become handy
+when configuring larger number of Mobotix camera's.
+Currently it contains:
+* mxbackup.py  -  Creates backups of a list of camera's just like the "Save current 
+configuration to local computer" option on your camera but then performed automatically
+on a list of camera's.
+* mxrestore.py  -  Restores multiple backups made with mxbackup.py or manually with the 
+"Save current configuration to local computer" option.
+* mxpgm  -  Changes mobotix camera configurations on the fly according to the configuration
+script supplied.
+# MxBackup
+usage: python mxbackup.py [options]
+Options:
+-d  or  --deviceIP   = IPv4 address of the device to be backed up
+-l  or  --devicelist = csv file with devices to be backed up. Must contains header line and 
+IP address in first column
+-u  or  --username   = Device username (default admin). All devices should use this username.
+-p  or  --password   = Device password (default meinsm). All devices should use this password.
+Currently different usernames/password for the devices in the list is not yet supported.
 
+After supplying the correct arguments configuration backup files will be written named
+IPaddress_datetime.cfg like: "192-168-1-24_170903-2214.cfg"
+
+# MxRestore
+usage: python mxrestore.py [options]
+Options:
+-d  or  --deviceIP   = IPv4 address of the device to be restored
+-l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
+IP address in first column
+-u  or  --username   = Device username (default admin). All devices should use this username.
+-p  or  --password   = Device password (default meinsm). All devices should use this password.
+Currently different usernames/password for the devices in the list is not yet supported.
+-o  or  --override   = Override the warning when the Camera SW version of cfg file and camera
+are different (this might cause seriouw trouble)
+-r  or  --reboot     = Reboots the camera after the configuration has been restored
+
+After supplying the correct arguments configuration backup files will be searched starting with 
+an IPaddress as found in the provided list or device parameters like "192-168-1-24_*.cfg"
+If a valid config file has bee found in the current directory the SW version number in the 
+file is checked with the SW version of the camera. SHould thes not be the same the file will 
+not be restored unless the -o or --override parameter is supplied.
+The config in the file will be entirely restored, stored in flash and an update command is 
+issued. A final reboot is optional an will be issued when supplying the -r or --reboot parameter.
+
+#MxPgm
+COnfiguration schanges can be easily made by backing up config files, changing them and restoring
+the result. Using MxPgm this is even easier
 Mobotix IP camera's come with an overwheling amount of configuration options. 
 When configuring these camera's for larger projects it can be time saving when
 configuration parameters can be pushed to a number of camera's at once.
@@ -69,7 +113,8 @@ and issue MxPGM with
 ```
 In these cases the -v option is valuable since we can verify the merging of the parameter
 to avoid rubbish being send to the camera's.
-Files can have any name. The devicelist file is a CSV file with ";" as a separator.
+Files can have any name. The devicelist file is a CSV file with ";" as a separator and 
+starts with a header line.
 
 When programming a single camera without parameters instead of a camera device list (the -l option)
 a single IP can be passed with the -d option like:
