@@ -18,7 +18,11 @@ import pycurl
 import sys
 import argparse
 import csv
+import datetime
+import time
 import glob
+import math
+import progressbar
 try:
     from StringIO import StringIO
 except ImportError:
@@ -26,8 +30,12 @@ except ImportError:
 
 RELEASE = '1.0 - 29-8-17'
 TMPCONFIG = 'config.tmp'
+TMPCONFIG2 = 'config2.tmp'
 TIMEOUT = 120 # saving config is generally slow
 VERBOSE = 0   # show pycurl verbose
+BARMAXVAL = 50 # seconds for length progressbar
+
+starttime = time.time()
 
 class FileReader:
     def __init__(self, fp):
@@ -59,8 +67,16 @@ def validate_ip(s):
             return False
     return True
 
+
+def progresscallback(total_to_download, total_downloaded, total_to_upload, total_uploaded):
+    global bar
+    global starttime
+    timespend = int(round(time.time() - starttime))
+    if timespend <= BARMAXVAL:
+        bar.update(timespend)
     
-def transfer(ipaddr, username, password, commandfile):   
+    
+def transfer(ipaddr, username, password, commandfile, trackprogress):   
     #transfers commandfile to camera
     storage = StringIO()
     c = pycurl.Curl()
@@ -73,6 +89,12 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(c.FAILONERROR, True)
     c.setopt(pycurl.POSTFIELDSIZE, filesize)
     c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
+    if trackprogress:
+        c.setopt(pycurl.NOPROGRESS, 0)
+        c.setopt(pycurl.PROGRESSFUNCTION, progresscallback)
+        starttime = time.time()
+    else:
+        c.setopt(pycurl.NOPROGRESS, 1)  
     c.setopt(c.WRITEFUNCTION, storage.write)
     c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
     c.setopt(c.VERBOSE, VERBOSE)
@@ -88,6 +110,32 @@ def transfer(ipaddr, username, password, commandfile):
     content = storage.getvalue()
     f.close()
     return True, content
+
+def verify_version(cfgfileversion, deviceIP, username, password):
+    #check if cfg to be restored has same SW version as device
+    versionok = False
+    result = False
+    if filewritable(TMPCONFIG2):
+        outfile = open(TMPCONFIG2, 'w')
+        outfile.write('helo\n')
+        outfile.write('view section timestamp\n')
+        outfile.write('quit\n')
+        outfile.close()
+        (result, received) = transfer(ipaddr, username, password, TMPCONFIG2, trackprogress = False)
+        if result:
+            versionpos = received.find("VERSION=")
+            datepos = received.find("DATE=")
+            deviceversion = received[versionpos+8:datepos-1]
+            # print('[' + deviceversion + '] - [' + cfgfileversion + ']')
+            if deviceversion == cfgfileversion:
+                versionok = True
+            else:
+                versionok = False
+        os.remove(TMPCONFIG2)
+    else:
+        print('ERROR: Unable to write temporary file')
+        sys.exit()
+    return result, versionok
 
 
 # ***************************************************************
@@ -105,6 +153,8 @@ parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP 
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
+parser.add_argument("-o", "--override", help="write config even if SW versions are unequal", action="store_true")
+parser.add_argument("-r", "--reboot", help="reboots camera after restoring", action="store_true")
 
 args = parser.parse_args()
 
@@ -140,6 +190,7 @@ if args.devicelist:
         sys.exit()
     
 print('Starting')
+bar = progressbar.ProgressBar(max_value = BARMAXVAL)
 
 # Build devicelist from devicelist file or from single parameter
 # devicelist is a list of lists
@@ -159,28 +210,49 @@ else:
 for devicenr in range(1, len(devicelist)):
     #skip device if starts with comment
     if devicelist[devicenr][0][0] != '#':
+        result = False
         ipaddr = devicelist[devicenr][0]
         cfgfilenamepattern = ipaddr.replace(".", "-") + "_*.cfg"
         list_of_files = glob.glob(cfgfilenamepattern)
         if list_of_files <> []:
             latest_file = max(list_of_files, key=os.path.getctime)
-            # build API commandfile to read the config
-            if filewritable(TMPCONFIG):
-                outfile = open(tmpconfig, 'w')
-                outfile.write('helo\n')
-                outfile.write('write\n')
-                '''
-                content of latest_file goes here
-                '''
-                outfile.write('store\n')
-                outfile.write('update\n')
-                outfile.write('quit\n')
-                outfile.close()
-                (result, received) = transfer(ipaddr, username, password, tmpconfig)
-                if result:
-                    print('Restoring of ' + ipaddr + ' succeeded.')
+            cfgfile = open(latest_file, 'r')
+            cfgfileversion = ''
+            for line in cfgfile.readlines():
+                if line.find('#:MX-') == 0:
+                    cfgfileversion = line[2:-1]
+                    break
+            (result, versionok) = verify_version(cfgfileversion, ipaddr, username, password)
+            if result:
+                if versionok or args.override:
+                    # build API commandfile to read the config
+                    if filewritable(TMPCONFIG):           
+                        outfile = open(TMPCONFIG, 'w')
+                        outfile.write('helo\n')
+                        outfile.write('write\n')
+                        cfgfile = open(latest_file, 'r')
+                        for line in cfgfile:
+                            outfile.write(line)
+                        outfile.write('store\n')
+                        outfile.write('update\n')
+                        if args.reboot:
+                            outfile.write('reboot\n')
+                        outfile.write('quit\n')
+                        outfile.close()
+                        print('Restoring ' + ipaddr + '...')
+                        (result, received) = transfer(ipaddr, username, password, TMPCONFIG, trackprogress = True)
+                        bar.finish()
+                        bar.init()
+                        if result:
+                            print('Restoring of ' + latest_file + ' to ' + ipaddr + ' succeeded.')
+                        else:
+                            print('ERROR: Restoring of ' + ipaddr + ' failed.')
+                        os.remove(TMPCONFIG)
                 else:
-                    print('ERROR: Restoring of ' + ipaddr + ' failed.')
+                    print('SW version does not match configfile version for device ' + ipaddr)
+                    print('Use -o or --override flag to ignore difference')
+            else:
+                print('Unable to verify device SW version')
         else:
             print('No configfile found for device' + ipaddr)
         print('')
