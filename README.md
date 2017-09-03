@@ -9,6 +9,11 @@ on a list of camera's.
 "Save current configuration to local computer" option.
 * mxpgm  -  Changes mobotix camera configurations on the fly according to the configuration
 script supplied.
+
+DISCLAIMER: This software is built out of personal interest and not related to Mobotix AG 
+in any way. You are free to use these tools for personal use. I will not be liable for any
+damage, loss of data or other forms of unexpected behaviour. 
+
 # MxBackup
 ```
 usage: python mxbackup.py [options]
