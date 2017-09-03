@@ -12,7 +12,7 @@ script supplied.
 
 DISCLAIMER: This software is built out of personal interest and not related to Mobotix AG 
 in any way. You are free to use these tools for personal use. I will not be liable for any
-damage, loss of data or other forms of unexpected behaviour. 
+damage, loss of data or other forms of unexpected behaviour. See MIT license for more details
 
 # MxBackup
 ```
