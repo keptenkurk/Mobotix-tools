@@ -10,6 +10,7 @@ on a list of camera's.
 * mxpgm  -  Changes mobotix camera configurations on the fly according to the configuration
 script supplied.
 # MxBackup
+```
 usage: python mxbackup.py [options]
 Options:
 -d  or  --deviceIP   = IPv4 address of the device to be backed up
@@ -17,12 +18,14 @@ Options:
 IP address in first column
 -u  or  --username   = Device username (default admin). All devices should use this username.
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
+```
 Currently different usernames/password for the devices in the list is not yet supported.
 
 After supplying the correct arguments configuration backup files will be written named
 IPaddress_datetime.cfg like: "192-168-1-24_170903-2214.cfg"
 
 # MxRestore
+```
 usage: python mxrestore.py [options]
 Options:
 -d  or  --deviceIP   = IPv4 address of the device to be restored
@@ -34,7 +37,7 @@ Currently different usernames/password for the devices in the list is not yet su
 -o  or  --override   = Override the warning when the Camera SW version of cfg file and camera
 are different (this might cause seriouw trouble)
 -r  or  --reboot     = Reboots the camera after the configuration has been restored
-
+```
 After supplying the correct arguments configuration backup files will be searched starting with 
 an IPaddress as found in the provided list or device parameters like "192-168-1-24_*.cfg"
 If a valid config file has bee found in the current directory the SW version number in the 
@@ -44,7 +47,7 @@ The config in the file will be entirely restored, stored in flash and an update 
 issued. A final reboot is optional an will be issued when supplying the -r or --reboot parameter.
 
 #MxPgm
-COnfiguration schanges can be easily made by backing up config files, changing them and restoring
+Configuration schanges can be easily made by backing up config files, changing them and restoring
 the result. Using MxPgm this is even easier
 Mobotix IP camera's come with an overwheling amount of configuration options. 
 When configuring these camera's for larger projects it can be time saving when
