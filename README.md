@@ -51,9 +51,23 @@ not be restored unless the -o or --override parameter is supplied.
 The config in the file will be entirely restored, stored in flash and an update command is 
 issued. A final reboot is optional an will be issued when supplying the -r or --reboot parameter.
 
-#MxPgm
-Configuration schanges can be easily made by backing up config files, changing them and restoring
-the result. Using MxPgm this is even easier
+# MxPgm
+```
+usage: python mxpgm.py [options]
+Options:
+-d  or  --deviceIP   = IPv4 address of the device to be restored
+-l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
+IP address in first column
+-u  or  --username   = Device username (default admin). All devices should use this username.
+-p  or  --password   = Device password (default meinsm). All devices should use this password.
+Currently different usernames/password for the devices in the list is not yet supported.
+-c  or  --commandfile = filename of textfile containing commands to perform
+are different (this might cause seriouw trouble)
+-v  or  --verify     = Do not program but just show resulting merged commandfile
+-f  or  --fileout    = filename of file to write output to. Just for checking later on
+```
+Configuration changes could be easily made by backing up config files, changing them with a
+text editor and restoring the result. Using MxPgm this is even easier.
 Mobotix IP camera's come with an overwheling amount of configuration options. 
 When configuring these camera's for larger projects it can be time saving when
 configuration parameters can be pushed to a number of camera's at once.
