@@ -23,6 +23,8 @@ Options:
 IP address in first column
 -u  or  --username   = Device username (default admin). All devices should use this username.
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
+-v  or  --verbose    = Show cURL verbose
 ```
 Currently different usernames/password for the devices in the list is not yet supported.
 
@@ -145,4 +147,13 @@ a single IP can be passed with the -d option like:
 ```
 MxPgm supports writing the received output to file with the -f <filename> option.
 
-
+Hints & tips:
+* Use the "write" option to replace an entire section when "write params" is not possible. This is 
+usually the case when dealing with profiles which have random numbers in it.
+* Be careful when programming camera's with a mix of software versions. A sample section taken from
+a camera with a different firmware might not work on another firmware.
+* Some configurations don't seem to end in a proper way and cause a timeout in the end. Although
+after investigation the proper config seemed to be stored. 
+* Using "append", "write" and "write params" in a single config file might cause trouble. 
+Better write separate configs but be aware to use the right order when parts of these configs rely
+on each other (like calling an IP Notify which needs to be programmed before).

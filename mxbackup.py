@@ -12,6 +12,7 @@
 #
 # release info
 # 1.0 first release 29/8/17 Paul Merkx
+# 1.1 added SSL support and verbose switch, moved to Python3
 # ****************************************************************************
 import os
 import pycurl
@@ -19,12 +20,9 @@ import sys
 import argparse
 import csv
 import datetime
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import io
 
-RELEASE = '1.0 - 29-8-17'
+RELEASE = '1.1 - 30-11-19'
 TMPCONFIG = 'config.tmp'
 TIMEOUT = 15  # retrieving config is generally fast
 VERBOSE = 0   # show pycurl verbose
@@ -60,11 +58,17 @@ def validate_ip(s):
     return True
 
     
-def transfer(ipaddr, username, password, commandfile):   
+def transfer(ipaddr, use_ssl, username, password, commandfile):   
     #transfers commandfile to camera
-    storage = StringIO()
+    storage = io.BytesIO()
     c = pycurl.Curl()
-    c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
+    if use_ssl:
+        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
+        # do not verify certificate, just accept it
+        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
+        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+    else:
+        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
     c.setopt(c.TIMEOUT, TIMEOUT)
@@ -80,9 +84,8 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(pycurl.USERPWD, username + ':' + password)
     try:
         c.perform()
-    except pycurl.error, error:
-        errno, errstr = error
-        print 'An error occurred: ', errstr
+    except pycurl.error as e:
+        print('An error occurred: ', e)
         return False, ''
     c.close()
     content = storage.getvalue()
@@ -105,6 +108,8 @@ parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP 
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when reading multiple camera's")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
+parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
+parser.add_argument("-v", "--verbose", help="Show verbose output", action="store_true")
 
 args = parser.parse_args()
 
@@ -138,6 +143,14 @@ if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
         print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
         sys.exit()
+        
+if args.verbose:
+    VERBOSE = 1
+
+if args.ssl:
+    use_ssl = True
+else:
+    use_ssl = False
     
 print('Starting')
 
@@ -170,14 +183,22 @@ for devicenr in range(1, len(devicelist)):
             cfgfilename = ipaddr.replace(".", "-") + "_" + \
                           datetime.datetime.now().strftime("%y%m%d-%H%M") + ".cfg"
             if filewritable(cfgfilename):
-                (result, received) = transfer(ipaddr, username, password, TMPCONFIG)
+                (result, received) = transfer(ipaddr, use_ssl, username, password, TMPCONFIG)
                 if result:
                     print('Reading of ' + ipaddr + ' succeeded.')
                     outfile = open(cfgfilename, 'w')
-                    outfile.write(received)
-                    outfile.seek(-24,2)
-                    outfile.truncate()
+                    outfile.write(received.decode("utf-8"))
                     outfile.close()
+                    
+                    #remove first 3 and last 3 lines
+                    outfile = open(cfgfilename, 'r')
+                    configfiledata = outfile.readlines()
+                    outfile.close()
+                    
+                    outfile = open(cfgfilename, 'w')  
+                    for line in range(3,len(configfiledata)-3):
+                        outfile.write(configfiledata[line])
+                    outfile.close()                    
                 else:
                     print('ERROR: Reading of ' + ipaddr + ' failed.')
             os.remove(TMPCONFIG)
