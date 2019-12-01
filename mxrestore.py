@@ -12,6 +12,7 @@
 #
 # release info
 # 1.0 first release 29/8/17 Paul Merkx
+# 1.1 added -s (SSL) option and -v (verbose) option, removed bar and moved to Python3 
 # ****************************************************************************
 import os
 import pycurl
@@ -22,20 +23,13 @@ import datetime
 import time
 import glob
 import math
-import progressbar
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import io
 
-RELEASE = '1.0 - 29-8-17'
+RELEASE = '1.1 - 1-12-19'
 TMPCONFIG = 'config.tmp'
 TMPCONFIG2 = 'config2.tmp'
 TIMEOUT = 120 # saving config is generally slow
 VERBOSE = 0   # show pycurl verbose
-BARMAXVAL = 50 # seconds for length progressbar
-
-starttime = time.time()
 
 class FileReader:
     def __init__(self, fp):
@@ -66,21 +60,19 @@ def validate_ip(s):
         if i < 0 or i > 255:
             return False
     return True
-
-
-def progresscallback(total_to_download, total_downloaded, total_to_upload, total_uploaded):
-    global bar
-    global starttime
-    timespend = int(round(time.time() - starttime))
-    if timespend <= BARMAXVAL:
-        bar.update(timespend)
     
     
-def transfer(ipaddr, username, password, commandfile, trackprogress):   
+def transfer(ipaddr, username, password, commandfile):   
     #transfers commandfile to camera
-    storage = StringIO()
+    storage = io.BytesIO()
     c = pycurl.Curl()
-    c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
+    if use_ssl:
+        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
+        # do not verify certificate, just accept it
+        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
+        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+    else:
+        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
     c.setopt(c.TIMEOUT, TIMEOUT)
@@ -89,12 +81,7 @@ def transfer(ipaddr, username, password, commandfile, trackprogress):
     c.setopt(c.FAILONERROR, True)
     c.setopt(pycurl.POSTFIELDSIZE, filesize)
     c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
-    if trackprogress:
-        c.setopt(pycurl.NOPROGRESS, 0)
-        c.setopt(pycurl.PROGRESSFUNCTION, progresscallback)
-        starttime = time.time()
-    else:
-        c.setopt(pycurl.NOPROGRESS, 1)  
+    c.setopt(pycurl.NOPROGRESS, 1)  
     c.setopt(c.WRITEFUNCTION, storage.write)
     c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
     c.setopt(c.VERBOSE, VERBOSE)
@@ -102,9 +89,8 @@ def transfer(ipaddr, username, password, commandfile, trackprogress):
     c.setopt(pycurl.USERPWD, username + ':' + password)
     try:
         c.perform()
-    except pycurl.error, error:
-        errno, errstr = error
-        print 'An error occurred: ', errstr
+    except pycurl.error as e:
+        print('An error occurred: ', e)
         return False, ''
     c.close()
     content = storage.getvalue()
@@ -121,11 +107,11 @@ def verify_version(cfgfileversion, deviceIP, username, password):
         outfile.write('view section timestamp\n')
         outfile.write('quit\n')
         outfile.close()
-        (result, received) = transfer(ipaddr, username, password, TMPCONFIG2, trackprogress = False)
+        (result, received) = transfer(ipaddr, username, password, TMPCONFIG2)
         if result:
-            versionpos = received.find("VERSION=")
-            datepos = received.find("DATE=")
-            deviceversion = received[versionpos+8:datepos-1]
+            versionpos = received.find(b'VERSION=')
+            datepos = received.find(b'DATE=')
+            deviceversion = received[versionpos+8:datepos-1].decode("utf-8")
             # print('[' + deviceversion + '] - [' + cfgfileversion + ']')
             if deviceversion == cfgfileversion:
                 versionok = True
@@ -142,7 +128,7 @@ def verify_version(cfgfileversion, deviceIP, username, password):
 # *** Main program ***
 # ***************************************************************
 print('MxRestore ' + RELEASE + ' by (c) Simac Healthcare.')
-print('Restores entire configuration of multiple Mobotix camera\'s to local disk.')
+print('Restores entire configuration of multiple Mobotix camera\'s from disk.')
 print('Disclaimer: ')
 print('USE THIS SOFTWARE AT YOUR OWN RISK')
 print(' ')
@@ -155,6 +141,8 @@ parser.add_argument("-u", "--username", nargs=1, help="specify target device adm
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 parser.add_argument("-o", "--override", help="write config even if SW versions are unequal", action="store_true")
 parser.add_argument("-r", "--reboot", help="reboots camera after restoring", action="store_true")
+parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
+parser.add_argument("-v", "--verbose", help="Show verbose output", action="store_true")
 
 args = parser.parse_args()
 
@@ -188,9 +176,16 @@ if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
         print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
         sys.exit()
+        
+if args.verbose:
+    VERBOSE = 1
+
+if args.ssl:
+    use_ssl = True
+else:
+    use_ssl = False  
     
 print('Starting')
-bar = progressbar.ProgressBar(max_value = BARMAXVAL)
 
 # Build devicelist from devicelist file or from single parameter
 # devicelist is a list of lists
@@ -214,7 +209,7 @@ for devicenr in range(1, len(devicelist)):
         ipaddr = devicelist[devicenr][0]
         cfgfilenamepattern = ipaddr.replace(".", "-") + "_*.cfg"
         list_of_files = glob.glob(cfgfilenamepattern)
-        if list_of_files <> []:
+        if len(list_of_files) > 0:
             latest_file = max(list_of_files, key=os.path.getctime)
             cfgfile = open(latest_file, 'r')
             cfgfileversion = ''
@@ -224,6 +219,11 @@ for devicenr in range(1, len(devicelist)):
                     break
             (result, versionok) = verify_version(cfgfileversion, ipaddr, username, password)
             if result:
+                if versionok:
+                    print('SW version matches configfile version for device ' + ipaddr)
+                else:
+                    if args.override:
+                        print('Non matching SW versions overridden by --override flag for device ' + ipaddr)
                 if versionok or args.override:
                     # build API commandfile to read the config
                     if filewritable(TMPCONFIG):           
@@ -240,9 +240,7 @@ for devicenr in range(1, len(devicelist)):
                         outfile.write('quit\n')
                         outfile.close()
                         print('Restoring ' + ipaddr + '...')
-                        (result, received) = transfer(ipaddr, username, password, TMPCONFIG, trackprogress = True)
-                        bar.finish()
-                        bar.init()
+                        (result, received) = transfer(ipaddr, username, password, TMPCONFIG)
                         if result:
                             print('Restoring of ' + latest_file + ' to ' + ipaddr + ' succeeded.')
                         else:
@@ -250,7 +248,7 @@ for devicenr in range(1, len(devicelist)):
                         os.remove(TMPCONFIG)
                 else:
                     print('SW version does not match configfile version for device ' + ipaddr)
-                    print('Use -o or --override flag to ignore difference')
+                    print('Use -o or --override flag to ignore difference (but be aware of unexpected camera behaviour)')
             else:
                 print('Unable to verify device SW version')
         else:

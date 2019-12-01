@@ -44,11 +44,13 @@ Currently different usernames/password for the devices in the list is not yet su
 -o  or  --override   = Override the warning when the Camera SW version of cfg file and camera
 are different (this might cause seriouw trouble)
 -r  or  --reboot     = Reboots the camera after the configuration has been restored
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
+-v  or  --verbose    = Show cURL verbose
 ```
 After supplying the correct arguments configuration backup files will be searched starting with 
 an IPaddress as found in the provided list or device parameters like "192-168-1-24_*.cfg"
 If a valid config file has bee found in the current directory the SW version number in the 
-file is checked with the SW version of the camera. SHould thes not be the same the file will 
+file is checked with the SW version of the camera. Should these not be the same the file will 
 not be restored unless the -o or --override parameter is supplied.
 The config in the file will be entirely restored, stored in flash and an update command is 
 issued. A final reboot is optional an will be issued when supplying the -r or --reboot parameter.
