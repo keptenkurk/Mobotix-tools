@@ -193,7 +193,7 @@ devicelist = []
 if args.devicelist:
     print('Build devicelist...')
     csv.register_dialect('semicolons', delimiter=';')
-    with open(args.devicelist[0], 'rb') as f:
+    with open(args.devicelist[0], 'r') as f:
         reader = csv.reader(f, dialect='semicolons')
         for row in reader:
             devicelist.append(row)

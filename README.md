@@ -7,8 +7,10 @@ configuration to local computer" option on your camera but then performed automa
 on a list of camera's.
 * mxrestore.py  -  Restores multiple backups made with mxbackup.py or manually with the 
 "Save current configuration to local computer" option.
-* mxpgm  -  Changes mobotix camera configurations on the fly according to the configuration
+* mxpgm.py  -  Changes mobotix camera configurations on the fly according to the configuration
 script supplied.
+Instead of installing python3, Windows users can also use the executables from the /dist folder
+in a DOS box.
 
 DISCLAIMER: This software is built out of personal interest and not related to Mobotix AG 
 in any way. You are free to use these tools for personal use. I will not be liable for any
@@ -153,9 +155,23 @@ a single IP can be passed with the -d option like:
 ```
 MxPgm supports writing the received output to file with the -f <filename> option.
 
-Hints & tips:
+# Hints & tips:
+* The -d (device) parameter expects an IP address and will try to verify this.
+Should your installation use hostnames instead use the -l (devicelist) option. These names or 
+addresses won't be verified and can thus contain hostnames.
 * Use the "write" option to replace an entire section when "write params" is not possible. This is 
-usually the case when dealing with profiles which have random numbers in it.
+usually the case when dealing with profiles which may have random generated profile ID's in it.
+* If you still need to change a single line in a section with profiles, refer to the correct profile 
+as described in the API documentation. Supply the profile name after the section: 
+<section name>/<profile name>/<parameter>=<value>
+example:
+```
+  helo
+  write params
+  events/ima_5a805a6b/ima=ima_5a805a6b:_profilename=VM2:ima_dead=5:ima_sens=vm:activity_level=33...etc
+  store
+  quit
+```
 * Be careful when programming camera's with a mix of software versions. A sample section taken from
 a camera with a different firmware might not work on another firmware.
 * Some configurations don't seem to end in a proper way and cause a timeout in the end. Although
