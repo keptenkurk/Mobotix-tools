@@ -69,6 +69,9 @@ Currently different usernames/password for the devices in the list is not yet su
 are different (this might cause seriouw trouble)
 -v  or  --verify     = Do not program but just show resulting merged commandfile
 -f  or  --fileout    = filename of file to write output to. Just for checking later on
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
+-o  or  --verbose    = Show cURL verbose
+-t  ot  --timeout    = Override timeout (default 60 seconds)
 ```
 Configuration changes could be easily made by backing up config files, changing them with a
 text editor and restoring the result. Using MxPgm this is even easier.
@@ -111,8 +114,9 @@ MxPGM can now be put to work with:
 The -v (verify) option tells mxpgm to just print out the commands without actually 
 programming any camera. Then, leaving the -v out, the camera's can be programmed.
 MxPGM will have a communication timeout of 5 seconds and will assume that a command is 
-processed within 30 seconds (a reboot takes about 12 seconds to process, the reboot itself
-nearly 2 minutes).
+processed within 60 seconds (a reboot takes about 12 seconds to process, the reboot itself
+nearly 2 minutes). If a longer timeout should be required the timeout can be overridden with
+the -t option.
 
 The devicelist could also contain parameters, unique to each camera, to be passed to the 
 specific camera. Consider the example where we would like to configure the devicename of

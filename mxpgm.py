@@ -12,15 +12,18 @@
 # release info
 # 1.0 first release 10/12/16 Paul Merkx
 # 1.1 separate tools for backup and restor 29/8/17 Paul Merkx
+# 1.2 added SSL support, verbose switch, timeout and moved to Python3 
 # ****************************************************************************
 import os
 import pycurl
 import sys
 import argparse
 import csv
-from StringIO import StringIO
+import io
 
-RELEASE = '1.1 - 29 aug 2017'
+RELEASE = '1.2 - 4 dec 2019'
+TIMEOUT = 60  # curl timeout
+VERBOSE = 0   # show pycurl verbose
 
 class FileReader:
     def __init__(self, fp):
@@ -43,19 +46,25 @@ def validate_ip(s):
 
  
 def replace_all(text, dic):
-    for i, j in dic.iteritems():
+    for i, j in dic.items():
         text = text.replace(i, j)
     return text
 
     
-def transfer(ipaddr, username, password, commandfile):   
+def transfer(ipaddr, use_ssl, username, password, commandfile):   
     #transfers commandfile to camera
-    storage = StringIO()
+    storage = io.BytesIO()
     c = pycurl.Curl()
-    c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
+    if use_ssl:
+        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
+        # do not verify certificate, just accept it
+        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
+        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+    else:
+        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
     c.setopt(c.POST, 1)
     c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, 60)
+    c.setopt(c.TIMEOUT, TIMEOUT)
     filesize = os.path.getsize(commandfile)
     f = open(commandfile, 'rb')
     c.setopt(c.FAILONERROR, True)
@@ -63,14 +72,13 @@ def transfer(ipaddr, username, password, commandfile):
     c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
     c.setopt(c.WRITEFUNCTION, storage.write)
     c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, 0)
+    c.setopt(c.VERBOSE, VERBOSE)
     c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
     c.setopt(pycurl.USERPWD, username + ':' + password)
     try:
         c.perform()
-    except pycurl.error, error:
-        errno, errstr = error
-        print 'An error occurred: ', errstr
+    except pycurl.error as e:
+        print('An error occurred: ', e)
         return False, ''
     c.close()
     content = storage.getvalue()
@@ -95,6 +103,9 @@ parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to
 parser.add_argument("-f", "--fileout", nargs=1, help="specify output filename")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
+parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
+parser.add_argument("-o", "--verbose", help="Show verbose output", action="store_true")
+parser.add_argument("-t", "--timeout", nargs=1, help="specify cUrl timeout in seconds (default = 60)")
 
 args = parser.parse_args()
 
@@ -114,7 +125,15 @@ if args.password is None:
     password = 'meinsm'
 else:
     password = args.password[0]
-    
+
+if args.timeout:
+    try:
+        TIMEOUT = int(args.timeout[0])
+    except:
+        print("Unable to understand timeout value of " + args.timeout[0])
+        print("Try an interger")
+        sys.exit()
+        
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
         print("The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
@@ -140,6 +159,14 @@ if args.fileout:
     except IOError:
         print('Unable to write to outputfile. It might be opened in another application.')
         sys.exit()
+
+if args.verbose:
+    VERBOSE = 1
+
+if args.ssl:
+    use_ssl = True
+else:
+    use_ssl = False
     
 print('Starting')
 print('Build devicelist...')
@@ -180,13 +207,13 @@ for devicenr in range(1, len(devicelist)):
                 print(outfile.read())
             print('-------------------------------------')
         else:
-            (result, received) = transfer(ipaddr, username, password, 'commands.tmp')
+            (result, received) = transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
             if result:
                 print('Programming ' + ipaddr + ' succeeded.')
                 if args.fileout:
                     try:
                         rxfile = open(args.fileout[0], 'w')
-                        rxfile.write(received)
+                        rxfile.write(received.decode("utf-8"))
                         rxfile.close()
                     except IOError:
                         print('Error writing received results to file')
