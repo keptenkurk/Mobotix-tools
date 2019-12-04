@@ -163,7 +163,7 @@ addresses won't be verified and can thus contain hostnames.
 usually the case when dealing with profiles which may have random generated profile ID's in it.
 * If you still need to change a single line in a section with profiles, refer to the correct profile 
 as described in the API documentation. Supply the profile name after the section: 
-<section name>/<profile name>/<parameter>=<value>
+"<section name>/<profile name>/<parameter>=<value>"
 example:
 ```
   helo
