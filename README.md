@@ -19,6 +19,7 @@ damage, loss of data or other forms of unexpected behaviour. See MIT license for
 # MxBackup
 ```
 usage: python mxbackup.py [options]
+(or mxbackup.exe [options]  when using the exe builds from the dist folder)
 Options:
 -d  or  --deviceIP   = IPv4 address of the device to be backed up
 -l  or  --devicelist = csv file with devices to be backed up. Must contains header line and 
@@ -36,6 +37,7 @@ IPaddress_datetime.cfg like: "192-168-1-24_170903-2214.cfg"
 # MxRestore
 ```
 usage: python mxrestore.py [options]
+(or mxrestore.exe [options]  when using the exe builds from the dist folder)
 Options:
 -d  or  --deviceIP   = IPv4 address of the device to be restored
 -l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
@@ -44,7 +46,7 @@ IP address in first column
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
 Currently different usernames/password for the devices in the list is not yet supported.
 -o  or  --override   = Override the warning when the Camera SW version of cfg file and camera
-are different (this might cause seriouw trouble)
+are different (this might cause serious trouble)
 -r  or  --reboot     = Reboots the camera after the configuration has been restored
 -s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
 -v  or  --verbose    = Show cURL verbose
@@ -60,6 +62,7 @@ issued. A final reboot is optional an will be issued when supplying the -r or --
 # MxPgm
 ```
 usage: python mxpgm.py [options]
+(or mxpgm.exe [options]  when using the exe builds from the dist folder)
 Options:
 -d  or  --deviceIP   = IPv4 address of the device to be restored
 -l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
@@ -68,7 +71,6 @@ IP address in first column
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
 Currently different usernames/password for the devices in the list is not yet supported.
 -c  or  --commandfile = filename of textfile containing commands to perform
-are different (this might cause seriouw trouble)
 -v  or  --verify     = Do not program but just show resulting merged commandfile
 -f  or  --fileout    = filename of file to write output to. Just for checking later on
 -s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
@@ -179,3 +181,24 @@ after investigation the proper config seemed to be stored.
 * Using "append", "write" and "write params" in a single config file might cause trouble. 
 Better write separate configs but be aware to use the right order when parts of these configs rely
 on each other (like calling an IP Notify which needs to be programmed before).
+# MxApi
+Sometimes you just need to send a HTTP API command to some camera's and overwriting the config is
+too complicated, like disable an action handler and storing the config. I used to craft a batch file
+with a series of curl commands for that but decided to write a small program to make life easier.
+```
+usage: python mxapi.py [options]
+(or mxapi.exe [options]  when using the exe builds from the dist folder)
+Options:
+-d  or  --deviceIP   = IPv4 address of the device to be restored
+-l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
+IP address in first column
+-u  or  --username   = Device username (default admin). All devices should use this username.
+-p  or  --password   = Device password (default meinsm). All devices should use this password.
+Currently different usernames/password for the devices in the list is not supported.
+-a  or  --apicommand = api url like /control/rcontrol?...etc...
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
+-t  ot  --timeout    = Override timeout (default 3 seconds)
+```
+Find more info on the very extensive Mobotix HTTP API at
+https://community.mobotix.com/t/getting-started-with-the-http-api/52
+or in the help of the camera: http://<ip_address_for_the_camera>/help/help at to bottom of that page
