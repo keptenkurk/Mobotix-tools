@@ -202,3 +202,4 @@ Currently different usernames/password for the devices in the list is not suppor
 Find more info on the very extensive Mobotix HTTP API at
 https://community.mobotix.com/t/getting-started-with-the-http-api/52
 or in the help of the camera: http://<ip_address_for_the_camera>/help/help at to bottom of that page
+NOTE: for windows users it might be necessary to supply the api string in quotes like -a "/control/rcontrol?...etc" 
