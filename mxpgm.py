@@ -13,17 +13,18 @@
 # 1.0 first release 10/12/16 Paul Merkx
 # 1.1 separate tools for backup and restor 29/8/17 Paul Merkx
 # 1.2 added SSL support, verbose switch, timeout and moved to Python3 
+# 1.3 changed to the use of requests instead of pycurl
 # ****************************************************************************
 import os
-import pycurl
+import requests
 import sys
 import argparse
 import csv
 import io
 
 RELEASE = '1.2 - 4 dec 2019'
-TIMEOUT = 60  # curl timeout
-VERBOSE = 0   # show pycurl verbose
+TIMEOUT = 10  # requests timeout
+VERBOSE = 0   # show requests verbose
 
 class FileReader:
     def __init__(self, fp):
@@ -53,37 +54,31 @@ def replace_all(text, dic):
     
 def transfer(ipaddr, use_ssl, username, password, commandfile):   
     #transfers commandfile to camera
-    storage = io.BytesIO()
-    c = pycurl.Curl()
+    succeeded = False
     if use_ssl:
-        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
-        # do not verify certificate, just accept it
-        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
-        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+        url = 'https://' + ipaddr + '/admin/remoteconfig'
+        verify=False
     else:
-        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
-    c.setopt(c.POST, 1)
-    c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, TIMEOUT)
-    filesize = os.path.getsize(commandfile)
-    f = open(commandfile, 'rb')
-    c.setopt(c.FAILONERROR, True)
-    c.setopt(pycurl.POSTFIELDSIZE, filesize)
-    c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
-    c.setopt(c.WRITEFUNCTION, storage.write)
-    c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, VERBOSE)
-    c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
-    c.setopt(pycurl.USERPWD, username + ':' + password)
+        url = 'http://' + ipaddr + '/admin/remoteconfig'
+        verify=True
     try:
-        c.perform()
-    except pycurl.error as e:
-        print('An error occurred: ', e)
-        return False, ''
-    c.close()
-    content = storage.getvalue()
-    f.close()
-    return True, content
+        with open(commandfile,'rb') as payload:
+            headers = {'content-type': 'application/x-www-form-urlencoded'}
+            response = requests.post(url, auth=(username, password),
+                       data=payload, verify=False, headers=headers,
+                       timeout=TIMEOUT)
+    except requests.ConnectionError:
+        print('Unable to connect. ', end='')
+        return succeeded, ''
+    except requests.Timeout:
+        print('Timeout. ', end='')
+        return succeeded, ''     
+    except requests.exceptions.RequestException as e:
+        print('Uncaught error:', str(e), end='')
+        return succeeded, ''     
+    else:
+        content = response.text            
+        return True, content
 
 
 # ***************************************************************
@@ -210,6 +205,8 @@ for devicenr in range(1, len(devicelist)):
             (result, received) = transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
             if result:
                 print('Programming ' + ipaddr + ' succeeded.')
+                #debug
+                print(received)
                 if args.fileout:
                     try:
                         rxfile = open(args.fileout[0], 'w')
