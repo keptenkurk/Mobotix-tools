@@ -18,7 +18,6 @@
 # ****************************************************************************
 import os
 import requests
-requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 from http import HTTPStatus
 import sys
 import argparse
@@ -27,6 +26,8 @@ import io
 
 RELEASE = '1.3beta - 30 may 2020'
 TIMEOUT = 10  # requests timeout (overwriteable by -t option)
+# Ignore the warning that SSL CA will not be checked
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
 def validate_ip(s):
@@ -73,7 +74,7 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
         return False, ''
     else:
         content = response.text
-        if response:       
+        if response:
             if (content.find('#read::') != 0):
                 print('Are you sure this is Mobotix? ', end='')
                 return False, ''
@@ -81,7 +82,7 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
                 return True, content
         else:
             print('HTTP response code: ', HTTPStatus(response.status_code).phrase)
-            return False,''
+            return False, ''
 
 # ***************************************************************
 # *** Main program ***
