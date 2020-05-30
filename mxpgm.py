@@ -18,6 +18,8 @@
 # ****************************************************************************
 import os
 import requests
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+from http import HTTPStatus
 import sys
 import argparse
 import csv
@@ -48,7 +50,6 @@ def replace_all(text, dic):
 
 def transfer(ipaddr, use_ssl, username, password, commandfile):
     # transfers commandfile to camera
-    succeeded = False
     if use_ssl:
         url = 'https://' + ipaddr + '/admin/remoteconfig'
         verify = False
@@ -63,17 +64,24 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
                                      headers=headers, timeout=TIMEOUT)
     except requests.ConnectionError:
         print('Unable to connect. ', end='')
-        return succeeded, ''
+        return False, ''
     except requests.Timeout:
         print('Timeout. ', end='')
-        return succeeded, ''
+        return False, ''
     except requests.exceptions.RequestException as e:
         print('Uncaught error:', str(e), end='')
-        return succeeded, ''
+        return False, ''
     else:
         content = response.text
-        return True, content
-
+        if response:       
+            if (content.find('#read::') != 0):
+                print('Are you sure this is Mobotix? ', end='')
+                return False, ''
+            else:
+                return True, content
+        else:
+            print('HTTP response code: ', HTTPStatus(response.status_code).phrase)
+            return False,''
 
 # ***************************************************************
 # *** Main program ***
@@ -193,9 +201,9 @@ for devicenr in range(1, len(devicelist)):
         else:
             (result, received) = transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
             if result:
-                print('Programming ' + ipaddr + ' succeeded.')
                 if echo_output:
                     print(received)
+                print('Programming ' + ipaddr + ' succeeded.')
             else:
                 print('ERROR: Programming ' + ipaddr + ' failed.')
             print('')
