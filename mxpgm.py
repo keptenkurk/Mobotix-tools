@@ -90,7 +90,8 @@ parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
-parser.add_argument("-t", "--timeout", nargs=1, help="specify cUrl timeout in seconds (default = 60)")
+parser.add_argument("-o", "--output", help="output device response to console", action="store_true")
+parser.add_argument("-t", "--timeout", nargs=1, help="specify cUrl timeout in seconds (default = 10)")
 
 args = parser.parse_args()
 
@@ -121,8 +122,8 @@ if args.timeout:
         
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
-        print("The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
-        sys.exit()
+        print("Warning: The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
+        print("Assuming %s is the devicename instead." % (args.deviceIP[0]))
 
 if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
@@ -141,6 +142,11 @@ if args.ssl:
     use_ssl = True
 else:
     use_ssl = False
+ 
+if args.output
+    echo output = True
+else:
+    echo_output = False
     
 print('Starting')
 print('Build devicelist...')
@@ -186,8 +192,8 @@ for devicenr in range(1, len(devicelist)):
             (result, received) = transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
             if result:
                 print('Programming ' + ipaddr + ' succeeded.')
-                #debug
-                print(received)
+                if echo_output:
+                    print(received)
             else:
                 print('ERROR: Programming ' + ipaddr + ' failed.')
             print('')
