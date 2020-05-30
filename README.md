@@ -64,18 +64,20 @@ issued. A final reboot is optional an will be issued when supplying the -r or --
 usage: python mxpgm.py [options]
 (or mxpgm.exe [options]  when using the exe builds from the dist folder)
 Options:
--d  or  --deviceIP   = IPv4 address of the device to be restored
+-d  or  --deviceIP   = IPv4 address or devicename of the device to be restored
+                       A warning is issued when a non IP adres is supplied
 -l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
-IP address in first column
+                       IP address in first column
 -u  or  --username   = Device username (default admin). All devices should use this username.
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
 Currently different usernames/password for the devices in the list is not yet supported.
 -c  or  --commandfile = filename of textfile containing commands to perform
 -v  or  --verify     = Do not program but just show resulting merged commandfile
--f  or  --fileout    = filename of file to write output to. Just for checking later on
+-f  or  --fileout    = depricated from version 1.3 onwards
 -s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
--o  or  --verbose    = Show cURL verbose
--t  ot  --timeout    = Override timeout (default 60 seconds)
+-o  or  --verbose    = depricated from version 1.3 and replaced with
+-o  or  --output     = show response of the camera
+-t  ot  --timeout    = Override timeout (default 10 seconds)
 ```
 Configuration changes could be easily made by backing up config files, changing them with a
 text editor and restoring the result. Using MxPgm this is even easier.
