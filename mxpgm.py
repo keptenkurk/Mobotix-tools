@@ -13,7 +13,7 @@
 # 1.0 first release 10/12/16 Paul Merkx
 # 1.1 separate tools for backup and restor 29/8/17 Paul Merkx
 # 1.2 added SSL support, verbose switch, timeout and moved to Python3 
-# 1.3 changed to the use of requests instead of pycurl
+# 1.3beta changed to the use of requests instead of pycurl
 # ****************************************************************************
 import os
 import requests
@@ -22,16 +22,8 @@ import argparse
 import csv
 import io
 
-RELEASE = '1.2 - 4 dec 2019'
-TIMEOUT = 10  # requests timeout
-VERBOSE = 0   # show requests verbose
-
-class FileReader:
-    def __init__(self, fp):
-        self.fp = fp
-    def read_callback(self, size):
-        return self.fp.read(size)
-
+RELEASE = '1.3beta - 30 may 2020'
+TIMEOUT = 10  # requests timeout (overwriteable by -t option)
         
 def validate_ip(s):
     a = s.split('.')
@@ -95,11 +87,9 @@ parser.add_argument("-v", "--verify", help="don't program camera yet but show re
 parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
 parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
 parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to send to camera(s). See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html")
-parser.add_argument("-f", "--fileout", nargs=1, help="specify output filename")
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
-parser.add_argument("-o", "--verbose", help="Show verbose output", action="store_true")
 parser.add_argument("-t", "--timeout", nargs=1, help="specify cUrl timeout in seconds (default = 60)")
 
 args = parser.parse_args()
@@ -146,17 +136,6 @@ if args.commandfile:
 else:
     print("The program requires a commandfile parameter! (-c [file])")
     sys.exit()
-    
-if args.fileout:
-    try:
-        f = open(args.fileout[0], 'w')
-        f.close()
-    except IOError:
-        print('Unable to write to outputfile. It might be opened in another application.')
-        sys.exit()
-
-if args.verbose:
-    VERBOSE = 1
 
 if args.ssl:
     use_ssl = True
@@ -192,8 +171,10 @@ for devicenr in range(1, len(devicelist)):
         print('About to program device ' + ipaddr)
         infile = open(args.commandfile[0],'r')
         outfile = open('commands.tmp', 'w')
+        outfile.write('\n') #commandfile starts with empty line is obligatory
         for line in infile:
             outfile.write(replace_all(line, replacedict))
+        outfile.write('\n') #commandfile ending with empty line is obligatory
         infile.close()
         outfile.close()
         if args.verify:
@@ -207,14 +188,6 @@ for devicenr in range(1, len(devicelist)):
                 print('Programming ' + ipaddr + ' succeeded.')
                 #debug
                 print(received)
-                if args.fileout:
-                    try:
-                        rxfile = open(args.fileout[0], 'w')
-                        rxfile.write(received.decode("utf-8"))
-                        rxfile.close()
-                    except IOError:
-                        print('Error writing received results to file')
-                        sys.exit()
             else:
                 print('ERROR: Programming ' + ipaddr + ' failed.')
             print('')
