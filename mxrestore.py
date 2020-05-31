@@ -8,14 +8,17 @@
 # usage:
 # python mxrstore.py [options] 
 # use option -h or --help for instructions
-# See https://github.com/keptenkurk/mxpgm/blob/master/README.md for instructions
+# See https://github.com/keptenkurk/mxpgm/blob/master/README.md for
+# instructions
 #
 # release info
 # 1.0 first release 29/8/17 Paul Merkx
-# 1.1 added -s (SSL) option and -v (verbose) option, removed bar and moved to Python3 
+# 1.1 added -s (SSL) option and -v (verbose) option, removed bar and moved
+# to Python3 
+# 1.2 skipped version
+# 1.3beta Changed PyCurl to requests
 # ****************************************************************************
 import os
-import pycurl
 import sys
 import argparse
 import csv
@@ -25,30 +28,25 @@ import glob
 import math
 import io
 
-RELEASE = '1.1 - 1-12-19'
+RELEASE = '1.3beta - 31 may 2020'
 TMPCONFIG = 'config.tmp'
 TMPCONFIG2 = 'config2.tmp'
 TIMEOUT = 120 # saving config is generally slow
 VERBOSE = 0   # show pycurl verbose
 
-class FileReader:
-    def __init__(self, fp):
-        self.fp = fp
-    def read_callback(self, size):
-        return self.fp.read(size)
-        
 
 def filewritable(filename):
     try:
         f = open(filename, 'w')
         f.close()
     except IOError:
-        print('Unable to write to ' + filename + '. It might be open in another application.')
+        print('Unable to write to ' + filename + '. It might be open \
+              in another application.')
         return False
     os.remove(filename)
     return True
 
-        
+
 def validate_ip(s):
     a = s.split('.')
     if len(a) != 4:
@@ -60,42 +58,44 @@ def validate_ip(s):
         if i < 0 or i > 255:
             return False
     return True
-    
-    
-def transfer(ipaddr, username, password, commandfile):   
-    #transfers commandfile to camera
-    storage = io.BytesIO()
-    c = pycurl.Curl()
+
+
+def transfer(ipaddr, username, password, commandfile):
+    # transfers commandfile to camera
     if use_ssl:
-        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
-        # do not verify certificate, just accept it
-        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
-        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+        url = 'https://' + ipaddr + '/admin/remoteconfig'
+        verify = False
     else:
-        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
-    c.setopt(c.POST, 1)
-    c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, TIMEOUT)
-    filesize = os.path.getsize(commandfile)
-    f = open(commandfile, 'rb')
-    c.setopt(c.FAILONERROR, True)
-    c.setopt(pycurl.POSTFIELDSIZE, filesize)
-    c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
-    c.setopt(pycurl.NOPROGRESS, 1)  
-    c.setopt(c.WRITEFUNCTION, storage.write)
-    c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, VERBOSE)
-    c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
-    c.setopt(pycurl.USERPWD, username + ':' + password)
+        url = 'http://' + ipaddr + '/admin/remoteconfig'
+        verify = True
     try:
-        c.perform()
-    except pycurl.error as e:
-        print('An error occurred: ', e)
+        with open(commandfile, 'rb') as payload:
+            headers = {'content-type': 'application/x-www-form-urlencoded'}
+            response = requests.post(url, auth=(username, password),
+                                     data=payload, verify=False,
+                                     headers=headers, timeout=TIMEOUT)
+    except requests.ConnectionError:
+        print('Unable to connect. ', end='')
         return False, ''
-    c.close()
-    content = storage.getvalue()
-    f.close()
-    return True, content
+    except requests.Timeout:
+        print('Timeout. ', end='')
+        return False, ''
+    except requests.exceptions.RequestException as e:
+        print('Uncaught error:', str(e), end='')
+        return False, ''
+    else:
+        content = response.text
+        if response:
+            if (content.find('#read::') != 0):
+                print('Are you sure this is Mobotix? ', end='')
+                return False, ''
+            else:
+                return True, content
+        else:
+            print('HTTP response code: ',
+                  HTTPStatus(response.status_code).phrase)
+            return False, ''
+
 
 def verify_version(cfgfileversion, deviceIP, username, password):
     #check if cfg to be restored has same SW version as device
