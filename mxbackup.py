@@ -2,36 +2,34 @@
 # * mxbackup.py
 # * Mobotix camera configuration backup utility
 #
-# This script saves configuration files from (multiple) mobotix camera's through 
+# This script saves configuration files from (multiple) mobotix camera's through
 # the Mobotix API
 # See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html for details
 # usage:
-# python mxbackup.py [options] 
+# python mxbackup.py [options]
 # use option -h or --help for instructions
 # See https://github.com/keptenkurk/mxpgm/blob/master/README.md for instructions
 #
 # release info
 # 1.0 first release 29/8/17 Paul Merkx
 # 1.1 added SSL support and verbose switch, moved to Python3
+# 1.2 -skip version
+# 1.3beta Change to using requests instead of pycurl
 # ****************************************************************************
 import os
-import pycurl
+import requests
+from http import HTTPStatus
 import sys
 import argparse
 import csv
-import datetime
 import io
+import datetime
 
-RELEASE = '1.1 - 30-11-19'
+RELEASE = '1.3beta - 30-5-2020'
 TMPCONFIG = 'config.tmp'
-TIMEOUT = 15  # retrieving config is generally fast
-VERBOSE = 0   # show pycurl verbose
-
-class FileReader:
-    def __init__(self, fp):
-        self.fp = fp
-    def read_callback(self, size):
-        return self.fp.read(size)
+TIMEOUT = 10  # requests timeout (overwriteable by -t option)
+# Ignore the warning that SSL CA will not be checked
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
 def filewritable(filename):
@@ -43,7 +41,7 @@ def filewritable(filename):
         return False
     os.remove(filename)
     return True
-        
+
 
 def validate_ip(s):
     a = s.split('.')
@@ -57,40 +55,41 @@ def validate_ip(s):
             return False
     return True
 
-    
-def transfer(ipaddr, use_ssl, username, password, commandfile):   
-    #transfers commandfile to camera
-    storage = io.BytesIO()
-    c = pycurl.Curl()
+
+def transfer(ipaddr, use_ssl, username, password, commandfile):
+    # transfers commandfile to camera
     if use_ssl:
-        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
-        # do not verify certificate, just accept it
-        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
-        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+        url = 'https://' + ipaddr + '/admin/remoteconfig'
+        verify = False
     else:
-        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
-    c.setopt(c.POST, 1)
-    c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, TIMEOUT)
-    filesize = os.path.getsize(commandfile)
-    f = open(commandfile, 'rb')
-    c.setopt(c.FAILONERROR, True)
-    c.setopt(pycurl.POSTFIELDSIZE, filesize)
-    c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
-    c.setopt(c.WRITEFUNCTION, storage.write)
-    c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, VERBOSE)
-    c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
-    c.setopt(pycurl.USERPWD, username + ':' + password)
+        url = 'http://' + ipaddr + '/admin/remoteconfig'
+        verify = True
     try:
-        c.perform()
-    except pycurl.error as e:
-        print('An error occurred: ', e)
+        with open(commandfile, 'rb') as payload:
+            headers = {'content-type': 'application/x-www-form-urlencoded'}
+            response = requests.post(url, auth=(username, password),
+                                     data=payload, verify=False,
+                                     headers=headers, timeout=TIMEOUT)
+    except requests.ConnectionError:
+        print('Unable to connect. ', end='')
         return False, ''
-    c.close()
-    content = storage.getvalue()
-    f.close()
-    return True, content
+    except requests.Timeout:
+        print('Timeout. ', end='')
+        return False, ''
+    except requests.exceptions.RequestException as e:
+        print('Uncaught error:', str(e), end='')
+        return False, ''
+    else:
+        content = response.text
+        if response:
+            if (content.find('#read::') != 0):
+                print('Are you sure this is Mobotix? ', end='')
+                return False, ''
+            else:
+                return True, content
+        else:
+            print('HTTP response code: ', HTTPStatus(response.status_code).phrase)
+            return False, ''
 
 
 # ***************************************************************
@@ -109,21 +108,20 @@ parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device l
 parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
 parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
 parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
-parser.add_argument("-v", "--verbose", help="Show verbose output", action="store_true")
 
 args = parser.parse_args()
 
 # *** Check validity of the arguments
 if (args.deviceIP is None and args.devicelist is None) or (args.deviceIP and args.devicelist):
     print("Either deviceIP or devicelist is required")
-    sys.exit() 
+    sys.exit()
 
 if args.username is None:
     print("Default Admin account assumed")
     username = 'admin'
 else:
     username = args.username[0]
- 
+
 if args.password is None:
     print("Default Admin password assumed")
     password = 'meinsm'
@@ -133,25 +131,22 @@ else:
 if not args.deviceIP and not args.devicelist:
     print("No devices specified. Either specify a device (-d) or devicelist (-l)")
     sys.exit()
-        
+
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
-        print("The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
-        sys.exit()
+        print("Warning: The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
+        print("Continuing using %s as devicename." % (args.deviceIP[0]))
 
 if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
         print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
         sys.exit()
-        
-if args.verbose:
-    VERBOSE = 1
 
 if args.ssl:
     use_ssl = True
 else:
     use_ssl = False
-    
+
 print('Starting')
 
 # Build devicelist from devicelist file or from single parameter
@@ -165,38 +160,41 @@ if args.devicelist:
         for row in reader:
             devicelist.append(row)
 else:
-    print('Found device '+ args.deviceIP[0])
+    print('Found device ' + args.deviceIP[0])
     devicelist.append(['IP'])
     devicelist.append([args.deviceIP[0]])
 
 for devicenr in range(1, len(devicelist)):
-    #skip device if starts with comment
+    # skip device if starts with comment
     if devicelist[devicenr][0][0] != '#':
         # build API commandfile to read the config
         if filewritable(TMPCONFIG):
             outfile = open(TMPCONFIG, 'w')
+            outfile.write('\n')
             outfile.write('helo\n')
             outfile.write('view configfile\n')
             outfile.write('quit\n')
+            outfile.write('\n')
             outfile.close()
             ipaddr = devicelist[devicenr][0]
             cfgfilename = ipaddr.replace(".", "-") + "_" + \
-                          datetime.datetime.now().strftime("%y%m%d-%H%M") + ".cfg"
+                                         datetime.datetime.now().strftime("%y%m%d-%H%M") + \
+                                         ".cfg"
             if filewritable(cfgfilename):
                 (result, received) = transfer(ipaddr, use_ssl, username, password, TMPCONFIG)
                 if result:
-                    print('Reading of ' + ipaddr + ' succeeded.')
+                    print('Backup of ' + ipaddr + ' succeeded.')
                     outfile = open(cfgfilename, 'w')
-                    outfile.write(received.decode("utf-8"))
+                    outfile.write(received)
                     outfile.close()
-                    
-                    #remove first 3 and last 3 lines
+
+                    #remove first 4 and last 3 lines
                     outfile = open(cfgfilename, 'r')
                     configfiledata = outfile.readlines()
                     outfile.close()
-                    
-                    outfile = open(cfgfilename, 'w')  
-                    for line in range(3,len(configfiledata)-3):
+
+                    outfile = open(cfgfilename, 'w')
+                    for line in range(4, len(configfiledata)-3):
                         outfile.write(configfiledata[line])
                     outfile.close()                    
                 else:
