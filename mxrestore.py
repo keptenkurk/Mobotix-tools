@@ -2,20 +2,23 @@
 # * mxrestore.py
 # * Mobotix camera config restore utility
 #
-# This script restores configfiles to (multiple) mobotix camera's 
+# This script restores configfiles to (multiple) mobotix camera's
 # through Mobotix API
 # See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html for details
 # usage:
-# python mxrstore.py [options] 
+# python mxrstore.py [options]
 # use option -h or --help for instructions
-# See https://github.com/keptenkurk/mxpgm/blob/master/README.md for instructions
+# See https://github.com/keptenkurk/mxpgm/blob/master/README.md for
+# instructions
 #
 # release info
 # 1.0 first release 29/8/17 Paul Merkx
-# 1.1 added -s (SSL) option and -v (verbose) option, removed bar and moved to Python3 
+# 1.1 added -s (SSL) option and -v (verbose) option, removed bar and moved
+# to Python3
+# 1.2 skipped version
+# 1.3 Changed PyCurl to requests
 # ****************************************************************************
 import os
-import pycurl
 import sys
 import argparse
 import csv
@@ -24,31 +27,30 @@ import time
 import glob
 import math
 import io
+import requests
+from http import HTTPStatus
 
-RELEASE = '1.1 - 1-12-19'
+RELEASE = '1.3 - 1-6-2020'
 TMPCONFIG = 'config.tmp'
 TMPCONFIG2 = 'config2.tmp'
-TIMEOUT = 120 # saving config is generally slow
-VERBOSE = 0   # show pycurl verbose
+TIMEOUT = 120  # Timeout can be overwritten with -t parameter
+# Ignore the warning that SSL CA will not be checked
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.
+                                           exceptions.InsecureRequestWarning)
 
-class FileReader:
-    def __init__(self, fp):
-        self.fp = fp
-    def read_callback(self, size):
-        return self.fp.read(size)
-        
 
 def filewritable(filename):
     try:
         f = open(filename, 'w')
         f.close()
     except IOError:
-        print('Unable to write to ' + filename + '. It might be open in another application.')
+        print('Unable to write to ' + filename + '. It might be open ' \
+              'in another application.')
         return False
     os.remove(filename)
     return True
 
-        
+
 def validate_ip(s):
     a = s.split('.')
     if len(a) != 4:
@@ -60,58 +62,60 @@ def validate_ip(s):
         if i < 0 or i > 255:
             return False
     return True
-    
-    
-def transfer(ipaddr, username, password, commandfile):   
-    #transfers commandfile to camera
-    storage = io.BytesIO()
-    c = pycurl.Curl()
+
+
+def transfer(ipaddr, username, password, commandfile):
+    # transfers commandfile to camera
     if use_ssl:
-        c.setopt(c.URL, 'https://' + ipaddr + '/admin/remoteconfig')
-        # do not verify certificate, just accept it
-        c.setopt(pycurl.SSL_VERIFYPEER, 0)   
-        c.setopt(pycurl.SSL_VERIFYHOST, 0)
+        url = 'https://' + ipaddr + '/admin/remoteconfig'
     else:
-        c.setopt(c.URL, 'http://' + ipaddr + '/admin/remoteconfig')
-    c.setopt(c.POST, 1)
-    c.setopt(c.CONNECTTIMEOUT, 5)
-    c.setopt(c.TIMEOUT, TIMEOUT)
-    filesize = os.path.getsize(commandfile)
-    f = open(commandfile, 'rb')
-    c.setopt(c.FAILONERROR, True)
-    c.setopt(pycurl.POSTFIELDSIZE, filesize)
-    c.setopt(pycurl.READFUNCTION, FileReader(f).read_callback)
-    c.setopt(pycurl.NOPROGRESS, 1)  
-    c.setopt(c.WRITEFUNCTION, storage.write)
-    c.setopt(pycurl.HTTPHEADER, ["application/x-www-form-urlencoded"])
-    c.setopt(c.VERBOSE, VERBOSE)
-    c.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_BASIC)
-    c.setopt(pycurl.USERPWD, username + ':' + password)
+        url = 'http://' + ipaddr + '/admin/remoteconfig'
     try:
-        c.perform()
-    except pycurl.error as e:
-        print('An error occurred: ', e)
+        with open(commandfile, 'rb') as payload:
+            headers = {'content-type': 'application/x-www-form-urlencoded'}
+            response = requests.post(url, auth=(username, password),
+                                     data=payload, verify=False,
+                                     headers=headers, timeout=TIMEOUT)
+    except requests.ConnectionError:
+        print('Unable to connect. ', end='')
         return False, ''
-    c.close()
-    content = storage.getvalue()
-    f.close()
-    return True, content
+    except requests.Timeout:
+        print('Timeout. ', end='')
+        return False, ''
+    except requests.exceptions.RequestException as e:
+        print('Uncaught error:', str(e), end='')
+        return False, ''
+    else:
+        content = response.text
+        if response:
+            if (content.find('#read::') != 0):
+                print('Are you sure this is Mobotix? ', end='')
+                return False, ''
+            else:
+                return True, content
+        else:
+            print('HTTP response code: ',
+                  HTTPStatus(response.status_code).phrase)
+            return False, ''
+
 
 def verify_version(cfgfileversion, deviceIP, username, password):
-    #check if cfg to be restored has same SW version as device
+    # check if cfg to be restored has same SW version as device
     versionok = False
     result = False
     if filewritable(TMPCONFIG2):
         outfile = open(TMPCONFIG2, 'w')
+        outfile.write('\n')
         outfile.write('helo\n')
         outfile.write('view section timestamp\n')
         outfile.write('quit\n')
+        outfile.write('\n')
         outfile.close()
         (result, received) = transfer(ipaddr, username, password, TMPCONFIG2)
         if result:
-            versionpos = received.find(b'VERSION=')
-            datepos = received.find(b'DATE=')
-            deviceversion = received[versionpos+8:datepos-1].decode("utf-8")
+            versionpos = received.find('VERSION=')
+            datepos = received.find('DATE=')
+            deviceversion = received[versionpos+8:datepos-1]
             # print('[' + deviceversion + '] - [' + cfgfileversion + ']')
             if deviceversion == cfgfileversion:
                 versionok = True
@@ -128,35 +132,48 @@ def verify_version(cfgfileversion, deviceIP, username, password):
 # *** Main program ***
 # ***************************************************************
 print('MxRestore ' + RELEASE + ' by (c) Simac Healthcare.')
-print('Restores entire configuration of multiple Mobotix camera\'s from disk.')
+print('Restores entire configuration of multiple ' \
+      'Mobotix camera\'s from disk.')
 print('Disclaimer: ')
 print('USE THIS SOFTWARE AT YOUR OWN RISK')
 print(' ')
 
 # *** Read arguments passed on commandline
 parser = argparse.ArgumentParser()
-parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
-parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
-parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
-parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
-parser.add_argument("-o", "--override", help="write config even if SW versions are unequal", action="store_true")
-parser.add_argument("-r", "--reboot", help="reboots camera after restoring", action="store_true")
-parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
-parser.add_argument("-v", "--verbose", help="Show verbose output", action="store_true")
+parser.add_argument("-d", "--deviceIP", nargs=1,
+                    help="specify target device IP when \
+                    programming a single camera")
+parser.add_argument("-l", "--devicelist", nargs=1,
+                    help="specify target device list in CSV when \
+                    programming multiple camera's")
+parser.add_argument("-u", "--username", nargs=1,
+                    help="specify target device admin username")
+parser.add_argument("-p", "--password", nargs=1,
+                    help="specify target device admin password")
+parser.add_argument("-o", "--override",
+                    help="write config even if SW versions are unequal",
+                    action="store_true")
+parser.add_argument("-r", "--reboot",
+                    help="reboots camera after restoring",
+                    action="store_true")
+parser.add_argument("-s", "--ssl",
+                    help="use SSL to communicate (HTTPS)",
+                    action="store_true")
 
 args = parser.parse_args()
 
 # *** Check validity of the arguments
-if (args.deviceIP is None and args.devicelist is None) or (args.deviceIP and args.devicelist):
+if (args.deviceIP is None and args.devicelist is None) or \
+   (args.deviceIP and args.devicelist):
     print("Either deviceIP or devicelist is required")
-    sys.exit() 
+    sys.exit()
 
 if args.username is None:
     print("Default Admin account assumed")
     username = 'admin'
 else:
     username = args.username[0]
- 
+
 if args.password is None:
     print("Default Admin password assumed")
     password = 'meinsm'
@@ -164,27 +181,28 @@ else:
     password = args.password[0]
 
 if not args.deviceIP and not args.devicelist:
-    print("No devices specified. Either specify a device (-d) or devicelist (-l)")
+    print('No devices specified. Either specify a device (-d)' \
+          'or devicelist (-l)')
     sys.exit()
-    
+
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
-        print("The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
-        sys.exit()
+        print("Warning: The device %s is not a valid IPv4 address!"
+              % (args.deviceIP[0]))
+        print("Continuing using %s as devicename."
+              % (args.deviceIP[0]))
 
 if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
-        print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
+        print("The devicelist '%s' does not exist in the current directory!"
+              % (args.devicelist[0]))
         sys.exit()
-        
-if args.verbose:
-    VERBOSE = 1
 
 if args.ssl:
     use_ssl = True
 else:
-    use_ssl = False  
-    
+    use_ssl = False
+
 print('Starting')
 
 # Build devicelist from devicelist file or from single parameter
@@ -198,12 +216,12 @@ if args.devicelist:
         for row in reader:
             devicelist.append(row)
 else:
-    print('Found device '+ args.deviceIP[0])
+    print('Found device ' + args.deviceIP[0])
     devicelist.append(['IP'])
     devicelist.append([args.deviceIP[0]])
 
 for devicenr in range(1, len(devicelist)):
-    #skip device if starts with comment
+    # skip device if starts with comment
     if devicelist[devicenr][0][0] != '#':
         result = False
         ipaddr = devicelist[devicenr][0]
@@ -217,17 +235,21 @@ for devicenr in range(1, len(devicelist)):
                 if line.find('#:MX-') == 0:
                     cfgfileversion = line[2:-1]
                     break
-            (result, versionok) = verify_version(cfgfileversion, ipaddr, username, password)
+            (result, versionok) = verify_version(cfgfileversion, ipaddr,
+                                                 username, password)
             if result:
                 if versionok:
-                    print('SW version matches configfile version for device ' + ipaddr)
+                    print('SW version matches configfile version ' \
+                          'for device ' + ipaddr)
                 else:
                     if args.override:
-                        print('Non matching SW versions overridden by --override flag for device ' + ipaddr)
+                        print('Non matching SW versions overridden by ' \
+                              '--override flag for device ' + ipaddr)
                 if versionok or args.override:
                     # build API commandfile to read the config
-                    if filewritable(TMPCONFIG):           
+                    if filewritable(TMPCONFIG):
                         outfile = open(TMPCONFIG, 'w')
+                        outfile.write('\n')
                         outfile.write('helo\n')
                         outfile.write('write\n')
                         cfgfile = open(latest_file, 'r')
@@ -238,20 +260,25 @@ for devicenr in range(1, len(devicelist)):
                         if args.reboot:
                             outfile.write('reboot\n')
                         outfile.write('quit\n')
+                        outfile.write('\n')
                         outfile.close()
-                        print('Restoring ' + ipaddr + '...')
-                        (result, received) = transfer(ipaddr, username, password, TMPCONFIG)
+                        print('Restoring ' + ipaddr + '...(takes abt 90sec)..')
+                        (result, received) = transfer(ipaddr, username,
+                                                      password, TMPCONFIG)
                         if result:
-                            print('Restoring of ' + latest_file + ' to ' + ipaddr + ' succeeded.')
+                            print('Restoring of ' + latest_file + ' to ' +
+                                  ipaddr + ' succeeded.')
                         else:
                             print('ERROR: Restoring of ' + ipaddr + ' failed.')
                         os.remove(TMPCONFIG)
                 else:
-                    print('SW version does not match configfile version for device ' + ipaddr)
-                    print('Use -o or --override flag to ignore difference (but be aware of unexpected camera behaviour)')
+                    print('SW version does not match configfile version ' \
+                          'for device ' + ipaddr)
+                    print('Use -o or --override flag to ignore difference ' \
+                          '(but be aware of unexpected camera behaviour)')
             else:
                 print('Unable to verify device SW version')
         else:
-            print('No configfile found for device' + ipaddr)
+            print('No configfile found for device ' + ipaddr)
         print('')
 print("Done.")
