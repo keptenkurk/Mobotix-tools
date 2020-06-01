@@ -1,3 +1,6 @@
 __pycache__/
 build/
 mxapi.spec
+mxpgm.spec
+mxbackup.spec
+mxrestore.spec
