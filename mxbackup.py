@@ -15,7 +15,7 @@
 # 1.0 first release 29/8/17 Paul Merkx
 # 1.1 added SSL support and verbose switch, moved to Python3
 # 1.2 -skip version
-# 1.3beta Change to using requests instead of pycurl
+# 1.3 Change to using requests instead of pycurl
 # ****************************************************************************
 import os
 import requests
@@ -26,7 +26,7 @@ import csv
 import io
 import datetime
 
-RELEASE = '1.3beta - 30-5-2020'
+RELEASE = '1.3 - 1-6-2020'
 TMPCONFIG = 'config.tmp'
 TIMEOUT = 10  # requests timeout (overwriteable by -t option)
 # Ignore the warning that SSL CA will not be checked
@@ -63,10 +63,8 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
     # transfers commandfile to camera
     if use_ssl:
         url = 'https://' + ipaddr + '/admin/remoteconfig'
-        verify = False
     else:
         url = 'http://' + ipaddr + '/admin/remoteconfig'
-        verify = True
     try:
         with open(commandfile, 'rb') as payload:
             headers = {'content-type': 'application/x-www-form-urlencoded'}

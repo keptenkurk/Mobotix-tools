@@ -14,7 +14,7 @@
 # 1.0 first release 10/12/16 Paul Merkx
 # 1.1 separate tools for backup and restor 29/8/17 Paul Merkx
 # 1.2 added SSL support, verbose switch, timeout and moved to Python3
-# 1.3beta changed to the use of requests instead of pycurl
+# 1.3 changed to the use of requests instead of pycurl
 # ****************************************************************************
 import os
 import requests
@@ -24,10 +24,11 @@ import argparse
 import csv
 import io
 
-RELEASE = '1.3beta - 30 may 2020'
+RELEASE = '1.3 - 1-6-2020'
 TIMEOUT = 10  # requests timeout (overwriteable by -t option)
 # Ignore the warning that SSL CA will not be checked
-requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.
+                                           exceptions.InsecureRequestWarning)
 
 
 def validate_ip(s):
@@ -53,10 +54,8 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
     # transfers commandfile to camera
     if use_ssl:
         url = 'https://' + ipaddr + '/admin/remoteconfig'
-        verify = False
     else:
         url = 'http://' + ipaddr + '/admin/remoteconfig'
-        verify = True
     try:
         with open(commandfile, 'rb') as payload:
             headers = {'content-type': 'application/x-www-form-urlencoded'}
@@ -81,7 +80,8 @@ def transfer(ipaddr, use_ssl, username, password, commandfile):
             else:
                 return True, content
         else:
-            print('HTTP response code: ', HTTPStatus(response.status_code).phrase)
+            print('HTTP response code: ',
+                  HTTPStatus(response.status_code).phrase)
             return False, ''
 
 # ***************************************************************
@@ -94,20 +94,34 @@ print(' ')
 
 # *** Read arguments passed on commandline
 parser = argparse.ArgumentParser()
-parser.add_argument("-v", "--verify", help="don't program camera yet but show resulting commandfile(s)", action="store_true")
-parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target device IP when programming a single camera")
-parser.add_argument("-l", "--devicelist", nargs=1, help="specify target device list in CSV when programming multiple camera's")
-parser.add_argument("-c", "--commandfile", nargs=1, help="specify commandfile to send to camera(s). See http://developer.mobotix.com/paks/help_cgi-remoteconfig.html")
-parser.add_argument("-u", "--username", nargs=1, help="specify target device admin username")
-parser.add_argument("-p", "--password", nargs=1, help="specify target device admin password")
-parser.add_argument("-s", "--ssl", help="use SSL to communicate (HTTPS)", action="store_true")
-parser.add_argument("-o", "--output", help="output device response to console", action="store_true")
-parser.add_argument("-t", "--timeout", nargs=1, help="specify cUrl timeout in seconds (default = 10)")
+parser.add_argument("-v", "--verify", help="\
+                    don't program camera yet but show resulting \
+                    commandfile(s)", action="store_true")
+parser.add_argument("-d", "--deviceIP", nargs=1, help="specify target \
+                     device IP when programming a single camera")
+parser.add_argument("-l", "--devicelist", nargs=1, help="\
+                    specify target device list in CSV \
+                    when programming multiple camera's")
+parser.add_argument("-c", "--commandfile", nargs=1, help="\
+                    specify commandfile to send to camera(s). \
+                    See http://developer.mobotix.com/paks/\
+                    help_cgi-remoteconfig.html")
+parser.add_argument("-u", "--username", nargs=1, help="\
+                    specify target device admin username")
+parser.add_argument("-p", "--password", nargs=1, help="\
+                    specify target device admin password")
+parser.add_argument("-s", "--ssl", help="\
+                    use SSL to communicate (HTTPS)", action="store_true")
+parser.add_argument("-o", "--output", help="\
+                    output device response to console", action="store_true")
+parser.add_argument("-t", "--timeout", nargs=1, help="\
+                    specify cUrl timeout in seconds (default = 10)")
 
 args = parser.parse_args()
 
 # *** Check validity of the arguments
-if (args.deviceIP is None and args.devicelist is None) or (args.deviceIP and args.devicelist):
+if (args.deviceIP is None and args.devicelist is None) or \
+   (args.deviceIP and args.devicelist):
     print("Either deviceIP or devicelist is required")
     sys.exit()
 
@@ -133,17 +147,21 @@ if args.timeout:
 
 if args.deviceIP:
     if not validate_ip(args.deviceIP[0]):
-        print("Warning: The device %s is not a valid IPv4 address!" % (args.deviceIP[0]))
-        print("Assuming %s is the devicename instead." % (args.deviceIP[0]))
+        print("Warning: The device %s is not a valid IPv4 address!"
+              % (args.deviceIP[0]))
+        print("Assuming %s is the devicename instead."
+              % (args.deviceIP[0]))
 
 if args.devicelist:
     if not os.path.exists(args.devicelist[0]):
-        print("The devicelist '%s' does not exist in the current directory!" % (args.devicelist[0]))
+        print("The devicelist '%s' does not exist in the current directory!"
+              % (args.devicelist[0]))
         sys.exit()
 
 if args.commandfile:
     if not os.path.exists(args.commandfile[0]):
-        print("The commandfile '%s' does not exist in the current directory!" % (args.commandfile[0]))
+        print("The commandfile '%s' does not exist in the current directory!"
+              % (args.commandfile[0]))
         sys.exit()
 else:
     print("The program requires a commandfile parameter! (-c [file])")
@@ -183,15 +201,16 @@ for devicenr in range(1, len(devicelist)):
         # build replacement dictionary
         replacedict = {}
         for param in range(1, len(devicelist[devicenr])):
-            replacedict['{' + devicelist[0][param] + '}'] = devicelist[devicenr][param]
+            replacedict['{' + devicelist[0][param] + '}'] =\
+              devicelist[devicenr][param]
         ipaddr = devicelist[devicenr][0]
         print('About to program device ' + ipaddr)
         infile = open(args.commandfile[0], 'r')
         outfile = open('commands.tmp', 'w')
-        outfile.write('\n')  # commandfile starts with empty line is obligatory
+        outfile.write('\n')  # commandfile needts to start with empty line
         for line in infile:
             outfile.write(replace_all(line, replacedict))
-        outfile.write('\n')  # commandfile ending with empty line is obligatory
+        outfile.write('\n')  # commandfile needs to end with empty line
         infile.close()
         outfile.close()
         if args.verify:
@@ -200,7 +219,8 @@ for devicenr in range(1, len(devicelist)):
                 print(outfile.read())
             print('-------------------------------------')
         else:
-            (result, received) = transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
+            (result, received) = \
+              transfer(ipaddr, use_ssl, username, password, 'commands.tmp')
             if result:
                 if echo_output:
                     print(received)
@@ -208,4 +228,5 @@ for devicenr in range(1, len(devicelist)):
             else:
                 print('ERROR: Programming ' + ipaddr + ' failed.')
             print('')
+        os.remove('commands.tmp')
 print("Done.")
