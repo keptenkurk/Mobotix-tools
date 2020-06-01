@@ -1,4 +1,4 @@
-# Mobotix Tools
+# Mobotix Tools v1.3 1-6-20
 The Mobotix-tools repository contains some utilities which might become handy
 when configuring larger number of Mobotix camera's.
 Currently it contains:
@@ -26,13 +26,12 @@ Options:
 IP address in first column
 -u  or  --username   = Device username (default admin). All devices should use this username.
 -p  or  --password   = Device password (default meinsm). All devices should use this password.
--s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
--v  or  --verbose    = Show cURL verbose
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
 ```
 Currently different usernames/password for the devices in the list is not yet supported.
 
 After supplying the correct arguments configuration backup files will be written named
-IPaddress_datetime.cfg like: "192-168-1-24_170903-2214.cfg"
+IPaddress_datetime.cfg like: "192-168-1-24_170903-2214.cfg (or hostname instead of IP addr)
 
 # MxRestore
 ```
@@ -48,16 +47,17 @@ Currently different usernames/password for the devices in the list is not yet su
 -o  or  --override   = Override the warning when the Camera SW version of cfg file and camera
 are different (this might cause serious trouble)
 -r  or  --reboot     = Reboots the camera after the configuration has been restored
--s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked
--v  or  --verbose    = Show cURL verbose
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
 ```
 After supplying the correct arguments configuration backup files will be searched starting with 
-an IPaddress as found in the provided list or device parameters like "192-168-1-24_*.cfg"
-If a valid config file has bee found in the current directory the SW version number in the 
+an IPaddress or hostname as found in the provided list or device parameters like "192-168-1-24_*.cfg"
+If a valid config file has been found in the current directory the SW version number in the 
 file is checked with the SW version of the camera. Should these not be the same the file will 
 not be restored unless the -o or --override parameter is supplied.
+If more device backups are present in the current directory the most recent one will be restored.
 The config in the file will be entirely restored, stored in flash and an update command is 
 issued. A final reboot is optional an will be issued when supplying the -r or --reboot parameter.
+Restoring takes about 90 seconds per camera.
 
 # MxPgm
 ```
@@ -104,11 +104,12 @@ storeandreboot.conf:
   reboot
   quit
 ```
-Now we also need a list of device IP adresses to send these commands to like:
+Now we also need a list of device IP adresses (or DNS names) to send these commands to like:
 ```
 devicelist.csv
   IP
   192.168.1.100
+  mycamera
   192.168.1.102
 ```
 
@@ -120,7 +121,7 @@ MxPGM can now be put to work with:
 The -v (verify) option tells mxpgm to just print out the commands without actually 
 programming any camera. Then, leaving the -v out, the camera's can be programmed.
 MxPGM will have a communication timeout of 5 seconds and will assume that a command is 
-processed within 60 seconds (a reboot takes about 12 seconds to process, the reboot itself
+processed within 10 seconds (a reboot takes about 12 seconds to process, the reboot itself
 nearly 2 minutes). If a longer timeout should be required the timeout can be overridden with
 the -t option.
 
@@ -157,12 +158,8 @@ a single IP can be passed with the -d option like:
 ```
 > python mxpgm.py -c storeandreboot.conf -d 192.168.1.100 -u john -p mysecret -v
 ```
-MxPgm supports writing the received output to file with the -f <filename> option.
 
 # Hints & tips:
-* The -d (device) parameter expects an IP address and will try to verify this.
-Should your installation use hostnames instead use the -l (devicelist) option. These names or 
-addresses won't be verified and can thus contain hostnames.
 * Use the "write" option to replace an entire section when "write params" is not possible. This is 
 usually the case when dealing with profiles which may have random generated profile ID's in it.
 * If you still need to change a single line in a section with profiles, refer to the correct profile 
@@ -179,7 +176,7 @@ example:
 * Be careful when programming camera's with a mix of software versions. A sample section taken from
 a camera with a different firmware might not work on another firmware.
 * Some configurations don't seem to end in a proper way and cause a timeout in the end. Although
-after investigation the proper config seemed to be stored. 
+after investigation the proper config seemed to be stored. This behaviour should have been fixed as of 1.3
 * Using "append", "write" and "write params" in a single config file might cause trouble. 
 Better write separate configs but be aware to use the right order when parts of these configs rely
 on each other (like calling an IP Notify which needs to be programmed before).
