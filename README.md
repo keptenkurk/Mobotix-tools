@@ -151,7 +151,7 @@ and issue MxPGM with
 In these cases the -v option is valuable since we can verify the merging of the parameter
 to avoid rubbish being send to the camera's.
 Files can have any name. The devicelist file is a CSV file with ";" as a separator and 
-starts with a header line.
+starts with a header line. NOTE: Parameters can only be supplied in columns additional to the IP column (the first "IP" column cannot be used as a parameter).
 
 When programming a single camera without parameters instead of a camera device list (the -l option)
 a single IP can be passed with the -d option like:
