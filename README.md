@@ -215,7 +215,7 @@ Currently different usernames/password for the devices in the list is not suppor
 -s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
 -t  ot  --timeout    = Override timeout (default 10 seconds)
 -miccheck or -micon or -micoff
--miccheck will probe alle camera's from the IP list generation a new CSV file mic_on.csv
+-miccheck will probe alle camera's from the IP list generating a new CSV file mic_on.csv
 A second run with the "-micoff -l mic_on.csv" options will now switch off the MI event.
 After the new years celebration the microphone can again be enabled by running the
 program a third time using the "-micon -l mic_on.csv" options.
