@@ -198,7 +198,25 @@ Currently different usernames/password for the devices in the list is not suppor
 -s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
 -t  ot  --timeout    = Override timeout (default 3 seconds)
 ```
-Find more info on the very extensive Mobotix HTTP API at
-https://community.mobotix.com/t/getting-started-with-the-http-api/52
-or in the help of the camera: http://<ip_address_for_the_camera>/help/help at to bottom of that page
-NOTE: for windows users it might be necessary to supply the api string in quotes like -a "/control/rcontrol?...etc" 
+# MxMic
+When lots of Mobotix camera's have the Microphone Event (MI) enabled and there will be lots of noise
+like on New Years fireworks this will cause an overload in alarm messages. For this specific usecase
+MxMic was programmed.
+```
+usage: python mxmic.py [options]
+(or mxmic.exe [options]  when using the exe builds from the dist folder)
+Otions:
+-d  or  --deviceIP   = IPv4 address of the device to be restored
+-l  or  --devicelist = csv file with devices to be restored. Must contains header line and 
+IP address in first column
+-u  or  --username   = Device username (default admin). All devices should use this username.
+-p  or  --password   = Device password (default meinsm). All devices should use this password.
+Currently different usernames/password for the devices in the list is not supported.
+-s  or  --ssl        = Device will be contacted using HTTPS (certificate SA will not be checked)
+-t  ot  --timeout    = Override timeout (default 10 seconds)
+-miccheck or -micon or -micoff
+-miccheck will probe alle camera's from the IP list generation a new CSV file mic_on.csv
+A second run with the "-micoff -l mic_on.csv" options will now switch off the MI event.
+After the new years celebration the microphone can again be enabled by running the
+program a third time using the "-micon -l mic_on.csv" options.
+
