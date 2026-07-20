@@ -193,7 +193,7 @@ for devicenr in range(1, len(devicelist)):
                                               username, password, TMPCONFIG)
                 if result:
                     print('Backup of ' + ipaddr + ' succeeded.')
-                    outfile = open(cfgfilename, 'w')
+                    outfile = open(cfgfilename, 'w', encoding="utf-8")
                     outfile.write(received)
                     outfile.close()
 
